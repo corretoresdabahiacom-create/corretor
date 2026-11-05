@@ -9,6 +9,12 @@ Um único processo Node (a API) serve também o app web e as páginas públicas.
 - **Arquivos:** `STORAGE_DRIVER=s3` com Cloudflare R2 (cota gratuita; exige cartão) ou disco local com backup.
 - **E-mail:** `EMAIL_DRIVER=resend` (plano gratuito, domínio verificado). Sem e-mail, convites seguem com link manual.
 
+## Banco: Neon
+- Projeto `my-first-project` (`square-truth-49115411`, aws-sa-east-1, Postgres 18). Branch `production` (banco `neondb`) e branch `test` (banco `imobflow_test`).
+- As 9 migrações (`001`–`009`) já estão aplicadas em `production` e registradas em `schema_migrations`; `npm run migrate` (ou a subida da API) só aplica as novas.
+- `DATABASE_URL` (com `?sslmode=require`) fica só nos segredos do host da API; nunca no repositório.
+- Testes: `TEST_DATABASE_URL=<url da branch test, banco imobflow_test> npm test`. O setup zera o schema `public`, por isso só aceita URLs com "test" no nome. O CI continua usando Postgres em container.
+
 ## Primeiro deploy
 1. Gere `FORM_SECRET` (≥24 caracteres); defina `PUBLIC_ORIGIN=https://…`, `COOKIE_SECURE=true`, `TRUST_PROXY=true`, `WEB_DIST=./web/dist`.
 2. A API migra o banco ao iniciar (ou `npm run migrate`).
