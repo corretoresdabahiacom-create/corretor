@@ -86,6 +86,8 @@ describe('Fase 4 — configuração de produção', () => {
       (config as any).isProd = true; (config as any).formSecret = ''; (config as any).cookieSecure = false;
       expect(() => assertProductionConfig()).toThrow(/FORM_SECRET/);
       Object.assign(config, { formSecret: 'x'.repeat(32), cookieSecure: true, publicOrigin: 'https://app.exemplo.com.br', devExposeTokens: false, databaseUrl: 'postgres://u:senhaforte@db/x' });
+      expect(() => assertProductionConfig()).toThrow(/sslmode/);
+      (config as any).databaseUrl = 'postgres://u:senhaforte@db/x?sslmode=require';
       expect(() => assertProductionConfig()).not.toThrow();
     } finally { Object.assign(config, prev); }
   });

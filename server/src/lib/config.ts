@@ -42,6 +42,8 @@ export function assertProductionConfig() {
   if (!/^https:\/\//.test(config.publicOrigin)) problems.push('PUBLIC_ORIGIN deve ser https://');
   if (config.devExposeTokens) problems.push('DEV_EXPOSE_TOKENS deve ser false');
   if (config.databaseUrl.includes('imobflow_dev')) problems.push('DATABASE_URL usa a senha de desenvolvimento');
+  if (!/@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(config.databaseUrl) && !/sslmode=(require|verify-full|verify-ca)/.test(config.databaseUrl))
+    problems.push('DATABASE_URL remota (ex.: Neon) deve incluir ?sslmode=require');
   if (config.email.driver === 'resend' && (!config.email.resendKey || !config.email.from)) problems.push('EMAIL_DRIVER=resend exige RESEND_API_KEY e EMAIL_FROM');
   if (problems.length) throw new Error('Configuração insegura para produção:\n - ' + problems.join('\n - '));
 }
