@@ -17,6 +17,7 @@ import Portal from './pages/Portal';
 import Contracts from './pages/Contracts';
 import Team from './pages/Team';
 import AppThemePage from './pages/AppTheme';
+import Account from './pages/Account';
 
 function GlobalSearch() {
   const [term, setTerm] = useState('');
@@ -80,6 +81,7 @@ function useNavItems() {
     ['Cadastros', [{ to: '/imoveis', label: 'Imóveis', icon: 'building' }, { to: '/pessoas', label: 'Pessoas', icon: 'users' }, { to: '/contratos', label: 'Contratos', icon: 'file', show: can('contracts.read') }]],
     ['Divulgação', [{ to: '/vitrine', label: 'Site e cartão', icon: 'store' }, { to: '/portal', label: 'Portal e contatos', icon: 'globe' }]],
     ['Gestão', [{ to: '/relatorios', label: 'Relatórios', icon: 'chart', show: can('reports.read') }, { to: '/equipe', label: 'Equipe', icon: 'gear', show: can('users.manage') }, { to: '/aparencia', label: 'Aparência do app', icon: 'brush', show: can('org.manage') }]],
+    ['Conta', [{ to: '/conta', label: 'Minha conta', icon: 'user' }]],
   ];
   return groups.map(([g, items]) => [g, items.filter((i) => i.show !== false)] as [string, NavItem[]]);
 }
@@ -145,6 +147,7 @@ function Shell() {
           <Route path="/relatorios" element={<Reports />} />
           <Route path="/equipe" element={<Team />} />
           <Route path="/aparencia" element={<AppThemePage />} />
+          <Route path="/conta" element={<Account />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

@@ -83,21 +83,38 @@ export async function vitrineRoutes(app: FastifyInstance) {
     return { site: siteOf(o.site, brandOf(o.brand).layout), images: imgs.map((i) => ({ ...i, url: `/api/public/site/${o.slug}/img/${i.id}?w=400` })), preview_url: `/v/${o.slug}?preview=1`, defaults: DEFAULT_SITE };
   });
 
-  app.patch('/api/site', { preHandler: requirePerm('org.manage') }, async (req, reply) => {
-    const b = siteInput.parse(req.body);
-    const o = await q1<any>('SELECT site,brand FROM organizations WHERE id=$1', [req.user!.orgId]);
+  // Junta um rascunho (parcial) ao site salvo. Imagens citadas precisam ser desta imobiliária.
+  const mergeDraft = async (orgId: string, b: z.infer<typeof siteInput>) => {
+    const o = await q1<any>('SELECT site,brand FROM organizations WHERE id=$1', [orgId]);
     const cur = siteOf(o.site, brandOf(o.brand).layout);
-    // Imagens citadas precisam ser desta imobiliária.
     const ids = [...(b.hero?.images ?? []), ...(b.about?.image ? [b.about.image] : []), ...(b.gallery ?? []).map((g) => g.id)];
     if (ids.length) {
-      const ok = await q<any>('SELECT id FROM site_images WHERE org_id=$1 AND id = ANY($2::uuid[])', [req.user!.orgId, ids]);
-      if (ok.length !== new Set(ids).size) return reply.code(400).send({ error: 'Imagem não encontrada. Envie a foto de novo.' });
+      const ok = await q<any>('SELECT id FROM site_images WHERE org_id=$1 AND id = ANY($2::uuid[])', [orgId, ids]);
+      if (ok.length !== new Set(ids).size) return null;
     }
     const next = { ...cur, ...b, theme: { ...cur.theme, ...(b.theme ?? {}) }, hero: { ...cur.hero, ...(b.hero ?? {}) }, about: { ...cur.about, ...(b.about ?? {}) }, contact: { ...cur.contact, ...(b.contact ?? {}) } };
     if (b.sections) next.sections = siteOf({ sections: b.sections }).sections;
+    return next;
+  };
+
+  app.patch('/api/site', { preHandler: requirePerm('org.manage') }, async (req, reply) => {
+    const next = await mergeDraft(req.user!.orgId, siteInput.parse(req.body));
+    if (!next) return reply.code(400).send({ error: 'Imagem não encontrada. Envie a foto de novo.' });
     await q('UPDATE organizations SET site=$2::jsonb WHERE id=$1', [req.user!.orgId, JSON.stringify(next)]);
     await audit(req, 'site.update', 'organization', req.user!.orgId);
     return { ok: true, site: next };
+  });
+
+  // Pré-visualização ao vivo: renderiza o RASCUNHO do editor sem gravar nada e sem contar visita.
+  app.post('/api/site/preview', { preHandler: requirePerm('org.manage'), ...rl(240, '1 minute') }, async (req, reply) => {
+    const next = await mergeDraft(req.user!.orgId, siteInput.parse(req.body));
+    if (!next) return reply.code(400).send({ error: 'Imagem não encontrada. Envie a foto de novo.' });
+    const o = await q1<any>('SELECT slug FROM organizations WHERE id=$1', [req.user!.orgId]);
+    const v = await loadVitrine(o.slug);
+    if (!v) return reply.code(404).send({ error: 'Vitrine não encontrada.' });
+    const ctx = await ctxOf({ ...v, site: siteOf(next) }, true);
+    const html = renderHome(ctx, v.rows, parseFilters({}), formToken(`v:${v.org.slug}`), CONSENT_TEXT);
+    return reply.header('cache-control', 'no-store').type('text/html; charset=utf-8').send(html);
   });
 
   app.post('/api/site/images', { preHandler: requirePerm('org.manage') }, async (req, reply) => {

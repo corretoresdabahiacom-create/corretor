@@ -7,7 +7,6 @@
     "dev:server": "npm -w server run dev",
     "dev:web": "npm -w web run dev",
     "migrate": "npm -w server run migrate",
-    "seed:demo": "npm -w server run seed:demo",
     "test": "npm -w server test",
     "build": "npm -w web run build",
     "start": "npm -w server run start"

@@ -40,13 +40,13 @@ export function Library({ images, selected, onPick, onUpload, onDelete, max, lab
 }
 
 /** Pré-visualização: celular em tamanho real; computador em 1280 px reduzido para caber. */
-function Frame({ device, src }: { device: 'phone' | 'desk'; src: string }) {
+function Frame({ device, html }: { device: 'phone' | 'desk'; html: string }) {
   const box = useRef<HTMLDivElement>(null); const [w, setW] = useState(600);
   useEffect(() => { const el = box.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth)); ro.observe(el); return () => ro.disconnect(); }, []);
   const H = Math.min(window.innerHeight * 0.78, 900);
-  if (device === 'phone') return <div ref={box}><iframe title="Pré-visualização do site (celular)" className="preview-frame phone" src={src} /></div>;
+  if (device === 'phone') return <div ref={box}><iframe title="Pré-visualização do site (celular)" className="preview-frame phone" srcDoc={html} /></div>;
   const sc = Math.min(1, w / 1280);
-  return <div ref={box} style={{ height: H, overflow: 'hidden' }}><iframe title="Pré-visualização do site (computador)" src={src} style={{ width: 1280, height: H / sc, border: 0, transform: `scale(${sc})`, transformOrigin: '0 0', background: '#fff' }} /></div>;
+  return <div ref={box} style={{ height: H, overflow: 'hidden' }}><iframe title="Pré-visualização do site (computador)" srcDoc={html} style={{ width: 1280, height: H / sc, border: 0, transform: `scale(${sc})`, transformOrigin: '0 0', background: '#fff' }} /></div>;
 }
 
 export default function SiteEditor() {
@@ -63,9 +63,23 @@ function Editor({ data, reload }: { data: any; reload: () => void }) {
   const dirty = useMemo(() => JSON.stringify(s) !== saved, [s, saved]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);
   const set = (block: string, k: string, v: any) => setS((x: any) => ({ ...x, [block]: { ...x[block], [k]: v } }));
+  const draftBody = (x: any) => ({ theme: x.theme, hero: x.hero, about: x.about, contact: x.contact, videos: x.videos.map((v: any) => ({ url: v.url ?? (v.provider === 'youtube' ? `https://youtu.be/${v.id}` : `https://vimeo.com/${v.id}`), title: v.title })), gallery: x.gallery, sections: x.sections, footer: x.footer });
+  // Pré-visualização ao vivo: renderiza o rascunho no servidor (nada é salvo) e mostra no painel lateral.
+  const [html, setHtml] = useState(''); const [pvErr, setPvErr] = useState('');
+  useEffect(() => {
+    const ctl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/site/preview', { method: 'POST', credentials: 'same-origin', signal: ctl.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(draftBody(s)) });
+        if (!res.ok) { let m = 'Não foi possível atualizar a pré-visualização.'; try { m = (await res.json()).error ?? m; } catch { /* */ } setPvErr(m); return; }
+        setHtml(await res.text()); setPvErr('');
+      } catch (e) { if ((e as Error).name !== 'AbortError') setPvErr('Sem conexão para atualizar a pré-visualização.'); }
+    }, html ? 400 : 0);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [s, ver]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     setBusy(true); setErr('');
-    try { const r = await patch('/api/site', { theme: s.theme, hero: s.hero, about: s.about, contact: s.contact, videos: s.videos.map((v: any) => ({ url: v.url ?? (v.provider === 'youtube' ? `https://youtu.be/${v.id}` : `https://vimeo.com/${v.id}`), title: v.title })), gallery: s.gallery, sections: s.sections, footer: s.footer });
+    try { const r = await patch('/api/site', draftBody(s));
       setS(r.site); setSaved(JSON.stringify(r.site)); setVer((x) => x + 1); toast('Site atualizado'); }
     catch (e) { setErr(e instanceof ApiError ? e.message : 'Não foi possível salvar.'); } finally { setBusy(false); }
   };
@@ -162,8 +176,8 @@ function Editor({ data, reload }: { data: any; reload: () => void }) {
         <div className="preview-bar"><b>Pré-visualização</b><div className="seg" role="group" aria-label="Tamanho da tela"><button className={device === 'phone' ? 'on' : ''} onClick={() => setDevice('phone')}>Celular</button><button className={device === 'desk' ? 'on' : ''} onClick={() => setDevice('desk')}>Computador</button></div>
           <button className="iconbtn" onClick={() => setVer((v) => v + 1)} aria-label="Recarregar pré-visualização"><Icon name="refresh" size={18} /></button>
           <a className="btn small right" href={data.preview_url.replace('?preview=1', '')} target="_blank" rel="noreferrer"><Icon name="eye" size={16} />Abrir site</a></div>
-        {dirty && <div className="small" style={{ padding: '.4rem .7rem', background: 'var(--warn-soft)', color: 'var(--warn)' }}>Salve para ver as mudanças aqui.</div>}
-        <Frame key={ver} device={device} src={`${data.preview_url}&v=${ver}`} />
+        <div className="small" style={{ padding: '.4rem .7rem', background: dirty ? 'var(--warn-soft)' : 'var(--ok-soft)', color: dirty ? 'var(--warn)' : 'var(--ok)' }}>{pvErr || (dirty ? 'Pré-visualização ao vivo. Estas mudanças ainda não foram publicadas: clique em “Salvar e publicar” se quiser mantê-las.' : 'Pré-visualização ao vivo. O site publicado está igual ao que você vê.')}</div>
+        {html ? <Frame device={device} html={html} /> : <div className="small muted" style={{ padding: '1rem' }}>Carregando pré-visualização…</div>}
       </div>
       {node}
     </div>

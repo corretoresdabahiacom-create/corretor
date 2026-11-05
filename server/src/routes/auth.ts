@@ -10,6 +10,7 @@ import {
 } from '../lib/auth.js';
 import { config } from '../lib/config.js';
 import { ROLE_PERMISSIONS } from '../lib/permissions.js';
+import { storage } from '../lib/storage.js';
 
 export const DEFAULT_STAGES = [
   ['novo_contato', 'Novo contato', 'aberta'],
@@ -24,7 +25,7 @@ export const DEFAULT_STAGES = [
 ] as const;
 
 // Limite de requisições por rota (desligável apenas nos testes automatizados)
-const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow } } });
+const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: (process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow }) as false | { max: number; timeWindow: string } } });
 
 const slugify = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -115,6 +116,36 @@ export async function authRoutes(app: FastifyInstance) {
       await c.query('UPDATE password_resets SET used_at=now() WHERE token_hash=$1', [hashToken(body.token)]);
       await c.query('DELETE FROM sessions WHERE user_id=$1', [r.user_id]); // encerra sessões antigas
     });
+    return { ok: true };
+  });
+
+  // ---- Excluir a própria conta ----
+  // Admin: apaga a imobiliária inteira e todos os dados (irreversível). Demais papéis: desativa e anonimiza só a própria conta.
+  app.post('/api/auth/account/delete', { preHandler: requireAuth, ...rl(5, '15 minutes') }, async (req, reply) => {
+    const body = z.object({ password: z.string().min(1, 'Informe sua senha.'), confirm: z.string() }).parse(req.body);
+    if (body.confirm.trim().toUpperCase() !== 'EXCLUIR') return reply.code(400).send({ error: 'Digite EXCLUIR para confirmar.' });
+    const me = await q1<any>('SELECT id, org_id, role, password_hash FROM users WHERE id=$1', [req.user!.id]);
+    if (!me || !(await verifyPassword(me.password_hash, body.password))) return reply.code(400).send({ error: 'Senha incorreta.' });
+    if (me.role === 'admin') {
+      const keys = (await q<any>(
+        `SELECT storage_key FROM files WHERE org_id=$1 UNION ALL SELECT storage_key FROM site_images WHERE org_id=$1 UNION ALL SELECT storage_key FROM org_assets WHERE org_id=$1`, [me.org_id])).map((r) => r.storage_key as string);
+      await tx(async (c) => {
+        await c.query('UPDATE organizations SET referred_by_org=NULL WHERE referred_by_org=$1', [me.org_id]);
+        await c.query('DELETE FROM organizations WHERE id=$1', [me.org_id]); // apaga em cascata usuários, pessoas, imóveis, funil, arquivos…
+      });
+      for (const k of keys) await storage().del(k).catch((e) => req.log.warn({ err: String(e) }, 'falha ao apagar arquivo ao excluir conta'));
+      // a organização não existe mais: registra sem org_id (FK) e sem dados pessoais
+      await q(`INSERT INTO audit_log(org_id,user_id,action,entity,detail,ip) VALUES (NULL,NULL,'org.delete','organization',$1,$2)`, [JSON.stringify({ users_org: 'removida' }), req.ip]);
+    } else {
+      await tx(async (c) => {
+        await c.query(`UPDATE users SET email=$2, name='Usuário excluído', password_hash=$3, active=false, calendar_token_hash=NULL, card_profile='{}'::jsonb, updated_at=now() WHERE id=$1`,
+          [me.id, `excluido-${me.id}@excluido.invalid`, await hashPassword(newToken() + 'aA1')]);
+        await c.query('DELETE FROM sessions WHERE user_id=$1', [me.id]);
+        await c.query('DELETE FROM password_resets WHERE user_id=$1', [me.id]);
+      });
+      await audit(req, 'user.delete_self', 'user', me.id);
+    }
+    reply.clearCookie(COOKIE, { path: '/' });
     return { ok: true };
   });
 

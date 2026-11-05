@@ -13,6 +13,7 @@ Um único processo Node (a API) serve também o app web e as páginas públicas.
 - Projeto `my-first-project` (`square-truth-49115411`, aws-sa-east-1, Postgres 18). Branch `production` (banco `neondb`) e branch `test` (banco `imobflow_test`).
 - As 9 migrações (`001`–`009`) já estão aplicadas em `production` e registradas em `schema_migrations`; `npm run migrate` (ou a subida da API) só aplica as novas.
 - `DATABASE_URL` (com `?sslmode=require`, obrigatório em produção para hosts remotos) fica só nos segredos do host da API; nunca no repositório.
+- Segurança: a migração `010_rls.sql` liga RLS (sem políticas) em todas as tabelas e revoga acessos de `PUBLIC`; a API conecta como dono das tabelas. Se um dia usar a Data API do Neon ou outro role, será preciso criar políticas explícitas.
 - Testes: `TEST_DATABASE_URL=<url da branch test, banco imobflow_test> npm test`. O setup zera o schema `public`, por isso só aceita URLs com "test" no nome. O CI continua usando Postgres em container.
 
 ## Hospedagem gratuita da API: Render

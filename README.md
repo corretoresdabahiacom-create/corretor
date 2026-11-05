@@ -8,7 +8,6 @@ Veja `docs/PLANO.md` (fases, decisões, acréscimos) e `docs/STATUS.md` (o que e
 cp .env.example .env            # ajuste a senha do banco
 npm install
 npm run migrate                 # cria/atualiza o schema (PostgreSQL 16)
-npm run seed:demo               # opcional: dados FICTÍCIOS, org separada (demo@imobflow.local / demo-senha-123)
 npm run dev:server              # API em :3001
 npm run dev:web                 # app em :5173 (proxy /api)
 npm test                        # 20 testes de fluxo no banco imobflow_test

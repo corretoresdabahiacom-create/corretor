@@ -1,7 +1,7 @@
 # Status (honesto)
 
 ## Concluído (Fase 1)
-Backend completo e testado; frontend mobile-first com todas as telas da Fase 1 (login/cadastro, painel, pessoas, imóveis, funil, agenda, relatórios, equipe). Seed de demonstração funcional.
+Backend completo e testado; frontend mobile-first com todas as telas da Fase 1 (login/cadastro, painel, pessoas, imóveis, funil, agenda, relatórios, equipe).
 
 ## Concluído (Fase 2)
 Fotos (galeria, capa, legenda) e documentos privados em imóveis, pessoas e contratos; upload validado pelo conteúdo real (JPG/PNG/WebP/PDF), limite 10 MB, 40 fotos por imóvel, nomes sanitizados, download só com login e permissão; documentos nunca públicos. Contratos de locação e arrendamento rural (rascunho → ativo → encerrado/rescindido), bloqueio de sobreposição por imóvel, status do imóvel atualizado, alertas de vencimento (30/60/90 dias), vencidos ainda ativos e reajuste, exibidos no painel.
