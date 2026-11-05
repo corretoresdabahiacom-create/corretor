@@ -1,0 +1,59 @@
+# Status (honesto)
+
+## Concluído (Fase 1)
+Backend completo e testado; frontend mobile-first com todas as telas da Fase 1 (login/cadastro, painel, pessoas, imóveis, funil, agenda, relatórios, equipe). Seed de demonstração funcional.
+
+## Concluído (Fase 2)
+Fotos (galeria, capa, legenda) e documentos privados em imóveis, pessoas e contratos; upload validado pelo conteúdo real (JPG/PNG/WebP/PDF), limite 10 MB, 40 fotos por imóvel, nomes sanitizados, download só com login e permissão; documentos nunca públicos. Contratos de locação e arrendamento rural (rascunho → ativo → encerrado/rescindido), bloqueio de sobreposição por imóvel, status do imóvel atualizado, alertas de vencimento (30/60/90 dias), vencidos ainda ativos e reajuste, exibidos no painel.
+
+## Concluído (Fase 3)
+Publicação de imóveis (exige autorização do proprietário e status disponível) em página pública `/p/:código` com metadados Open Graph/JSON-LD (prévia no WhatsApp), só com fotos marcadas como públicas; sem notas internas, proprietário, documentos, registro rural nem endereço exato (a menos que autorizado); preço pode ser ocultado. Formulário de contato com consentimento, honeypot, token assinado com tempo mínimo, limite por IP, deduplicação em 24h e Turnstile opcional. Caixa de contatos com conversão em cliente. Compartilhamento (WhatsApp por link `wa.me`, copiar link) com contagem. Plano gratuito com limites (15 imóveis, 5 publicados, 3 usuários+convites) e selo "Feito com ImobFlow" com link de indicação; contagem de imobiliárias indicadas; métricas de 30 dias.
+
+## Concluído (Fase 4)
+Agenda por URL (iCalendar privado, rotacionável, escopo por usuário) para Google Agenda/Apple/Outlook; e-mail transacional (convite e recuperação de senha) via Resend ou modo console, sem revelar se a conta existe; PWA instalável; robots.txt e sitemap.xml; app web servido pela própria API em produção; validação de configuração insegura na inicialização; CSP/HSTS; Origin estrito em produção; `trustProxy`; script de backup; workflows de CI e deploy; dependências sem vulnerabilidades conhecidas. Ver `docs/SEGURANCA.md` e `docs/DEPLOY.md`.
+
+## Concluído (Fase 5 — vitrine)
+Vitrine pública `/v/:slug` com imóveis publicados e disponíveis agrupados em Destaques, Venda, Aluguel, Litoral e Rural/arrendamento, com fotos públicas (miniaturas WebP), descrição, preço (se autorizado), busca e botão de WhatsApp. Marca por imobiliária (logomarca reprocessada em PNG — SVG recusado —, cores, slogan, layout). QR Code (SVG) e cartão de visita individual 90×50 mm, 300 dpi, em 3 layouts (PNG para baixar/imprimir). Acessos contados por origem. Ver `docs/LACUNAS.md` para o que falta.
+
+## Verificação
+- `npm test` (servidor): **40/40 passaram** (4 novos da Fase 5: vitrine/privacidade, miniaturas/QR/sitemap, marca/logo, cartão; 20 da Fase 1 + 3 da Fase 2 + 5 da Fase 3 + 6 da Fase 4 [agenda iCal, e-mail, SEO, cabeçalhos/CSRF, config de produção, PWA]; Fase 3: [vazamento de dados, formulário anti-spam, conversão, limites do plano, indicação]: upload/permissões/isolamento, capa/exclusão/limite, ciclo de contratos e alertas) (validadores, auth/convites/reset, duplicidade, filtros, funil, reservas, agenda, papéis, isolamento entre organizações, relatórios/CSV).
+- Frontend: `tsc` e `vite build` **passaram**.
+
+## Parcial / limitações conhecidas
+- E-mail não integrado: convites e recuperação de senha só funcionam por link exibido (DEV_EXPOSE_TOKENS). Lembretes só dentro do app.
+- Sem backup automatizado, sem monitoramento.
+
+## Pendente / fora do escopo atual
+Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com portais imobiliários e WhatsApp Business; rede de parceiros; 2FA; antivírus de uploads; miniaturas de imagens; revisão jurídica (LGPD/contratos); teste de carga e testes de interface (E2E).
+
+**Situação:** as 4 fases do plano estão implementadas e os fluxos principais passam nos testes automatizados. Antes de usar com clientes reais: publicar em ambiente de teste, validar manualmente no celular, testar backup/restauração e fazer revisão jurídica.
+
+## Cartão (somente frente) e avaliação de imóveis
+- Cartão: só a frente (logo, nome da imobiliária ou do corretor à escolha, serviços em coluna, QR). Serviços editáveis (1–5) na marca.
+- Vitrine: faixa "Nossos serviços" e formulário público de pedido de avaliação (token, honeypot, consentimento, limite por IP) que cai na caixa de contatos.
+- Testado: API (40/40). Não testado: impressão em gráfica, leitura do QR em celular real, fontes em produção.
+
+## Cartão personalizável
+- Serviços padrão: "Vendas, aluguel e arrendamentos", "Imóveis urbanos, rurais e litorais", "Avaliação de imóveis" (editáveis).
+- Botão "Clique aqui" (texto editável) + QR levam à vitrine; no app o cartão é clicável e o SVG baixado tem o link. PNG/impresso não clica (use o QR).
+- Admin edita fundo, texto, cor do botão, nome em destaque, linha abaixo, título dos serviços, botão e contatos. Testes: 41/41 (na época).
+
+## Fase 6 — layout moderno, PWA e site da imobiliária
+- **App:** novo design (tokens, cartões, tipografia), menu lateral agrupado no computador, barra de 5 itens + "Mais" no celular, busca que abre no topo, indicadores com valor curto (R$ 1,49 mi), tabelas que viram cartões no celular, login com painel.
+- **Telas corrigidas:** barra inferior com 10 ícones cortados; busca espremida; vitrine estreita no computador; tabelas espremidas; botão estourando na tela Equipe.
+- **PWA:** manifesto completo (ícones "any" e "maskable", atalhos), ícone para iPhone, botão "Instalar o app" (e instrução no iPhone), aviso "Nova versão disponível", tela sem internet (no app e `offline.html`), service worker que nunca guarda `/api`, `/p` nem `/v`, cabeçalhos de cache corretos (`sw.js` e `index.html` sem cache; `assets/` imutáveis).
+- **Site da vitrine (`/v/:slug`):** capa com fotos que trocam, busca rápida, categorias, destaques, todos os imóveis com filtros (finalidade, tipo, cidade, região, preço mín./máx., quartos, vagas, área, palavra-chave, ordenação) por link compartilhável, serviços, sobre nós, vídeos, galeria, avaliação, contato, botão flutuante de WhatsApp.
+- **Página do imóvel no site (`/v/:slug/imovel/:código`):** galeria (com tela cheia), dados principais, descrição, características, vídeos, região no mapa (link), contato e WhatsApp, imóveis parecidos. Só mostra imóveis da própria imobiliária.
+- **Editor (Site e cartão → Site):** cores de fundo/texto (com sugestões), topo, capa, lista em grade ou lista, letras, cantos; título e frase da capa; fotos (enviar/excluir/escolher, até 60, sem GPS); seções liga/desliga e ordem; sobre nós; vídeos por link; galeria com legendas; contato, redes e rodapé; pré-visualização ao vivo em celular e computador.
+- **Vídeos dos imóveis:** por link do YouTube (modo sem cookies) ou Vimeo, até 10 por imóvel.
+- **Erros encontrados e corrigidos na auditoria:** script da vitrine antiga com `;` faltando (busca e avaliação não funcionavam no navegador); recarga automática na 1ª visita apagava o que a pessoa digitava; filtros do site não abriam no celular; após novo build, arquivos JS novos caíam na página HTML.
+- **Testes:** 46/46 (inclui: links de vídeo aceitos/recusados, filtros, edição do site, permissões, imagens de outra imobiliária recusadas, isolamento da página do imóvel, scripts das páginas públicas compilam, regras do service worker).
+- **Não testado:** instalação real em Android/iPhone, vídeos tocando (rede do ambiente bloqueia YouTube/Vimeo), leitores de tela, desempenho em 3G, imagens no R2.
+- **Observação:** a página pública tem cache de 60 s; uma alteração salva no editor pode levar até 1 minuto para aparecer para visitantes (a pré-visualização é imediata).
+
+## Fase 7 — visual do site no app e aparência editável
+- **App no computador com o visual do site:** Início com capa (foto ou cor), saudação, busca rápida de imóveis e atalhos; indicadores destacados; imóveis em cartões com foto, selos, preço, endereço e ícones (quartos, banheiros, vagas, área), em grade ou lista (cada pessoa pode alternar).
+- **Aparência do app (Gestão → Aparência do app, só administrador):** "Igual ao site" (acompanha o site automaticamente) ou "Visual próprio"; cor principal, de destaque, fundo e texto (com sugestões); menu lateral claro, escuro ou na cor principal; letras moderna/clássica/elegante; cantos; grade ou lista; foto da capa do Início (mesmas fotos do site). Pré-visualização ao vivo no app inteiro, "Desfazer" e "Salvar para a equipe".
+- **Servidor:** `organizations.app_theme`; `GET/PATCH /api/app-theme` (org.manage, cores validadas, foto só da própria imobiliária); tema efetivo entregue em `/api/auth/me`; capa do imóvel na listagem; miniatura autenticada `/api/files/:id/thumb`.
+- **Testes:** 49/49 (tema aplicado à equipe, isolamento entre imobiliárias, permissões, "igual ao site", miniaturas).
+- **Não testado:** contraste de todas as combinações de cores escolhidas livremente (o app escolhe a cor do texto dos botões automaticamente, mas cores muito parecidas de fundo e texto podem ficar ilegíveis).
