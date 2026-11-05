@@ -1,0 +1,22 @@
+# Blueprint do Render (plano gratuito). Passo a passo em docs/DEPLOY.md.
+services:
+  - type: web
+    name: imobflow
+    runtime: node
+    plan: free
+    region: virginia          # mais próximo do Neon (sa-east-1) entre as regiões do Render
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start   # roda em server/ (workspace), por isso WEB_DIST=../web/dist
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: production }
+      - { key: HOST, value: 0.0.0.0 }
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: TRUST_PROXY, value: "true" }
+      - { key: DEV_EXPOSE_TOKENS, value: "false" }
+      - { key: WEB_DIST, value: ../web/dist }
+      - { key: FORM_SECRET, generateValue: true }
+      - { key: DATABASE_URL, sync: false }   # connection string do Neon (production), com ?sslmode=require
+      - { key: PUBLIC_ORIGIN, sync: false }  # https://imobflow.onrender.com (ou seu domínio)

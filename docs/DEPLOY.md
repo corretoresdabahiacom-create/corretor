@@ -15,6 +15,16 @@ Um único processo Node (a API) serve também o app web e as páginas públicas.
 - `DATABASE_URL` (com `?sslmode=require`, obrigatório em produção para hosts remotos) fica só nos segredos do host da API; nunca no repositório.
 - Testes: `TEST_DATABASE_URL=<url da branch test, banco imobflow_test> npm test`. O setup zera o schema `public`, por isso só aceita URLs com "test" no nome. O CI continua usando Postgres em container.
 
+## Hospedagem gratuita da API: Render
+O `render.yaml` na raiz configura tudo (Node 22, build do web + API no mesmo serviço, health check em `/api/health`).
+1. Em render.com, crie a conta com o GitHub (não pede cartão) e escolha **New → Blueprint**; selecione este repositório e a branch desejada.
+2. Quando pedir, preencha `DATABASE_URL` (connection string do Neon `production`, com `?sslmode=require`) e `PUBLIC_ORIGIN` (`https://imobflow.onrender.com`, ou a URL que o Render mostrar; pode ajustar depois em Environment).
+3. Após o primeiro deploy, abra a URL do serviço e crie sua conta em `/cadastrar`.
+Limitações do plano gratuito:
+- O serviço hiberna após ~15 min sem acesso; o primeiro acesso seguinte leva cerca de 1 minuto.
+- O disco é efêmero: com `STORAGE_DRIVER=local`, fotos e documentos enviados somem a cada deploy/reinício. Para uso real, configure `STORAGE_DRIVER=s3` (Cloudflare R2 exige cartão, mas tem cota gratuita).
+- Não há região em São Paulo; `virginia` é a mais próxima do Neon.
+
 ## Primeiro deploy
 1. Gere `FORM_SECRET` (≥24 caracteres); defina `PUBLIC_ORIGIN=https://…`, `COOKIE_SECURE=true`, `TRUST_PROXY=true`, `WEB_DIST=./web/dist`.
 2. A API migra o banco ao iniciar (ou `npm run migrate`).
