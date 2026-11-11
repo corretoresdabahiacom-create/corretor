@@ -20,6 +20,8 @@ export const config = {
     accessKeyId: process.env.S3_ACCESS_KEY_ID, secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
   },
   maxUploadBytes: Number(process.env.MAX_UPLOAD_MB ?? 10) * 1024 * 1024,
+  maxVideoBytes: Number(process.env.MAX_VIDEO_MB ?? 30) * 1024 * 1024,           // por vídeo
+  maxOrgVideoBytes: Number(process.env.MAX_ORG_VIDEO_MB ?? 150) * 1024 * 1024,    // total por imobiliária (protege a cota gratuita do banco)
   // Portal público
   formSecret: process.env.FORM_SECRET ?? (process.env.NODE_ENV === 'production' ? '' : 'dev-only-form-secret'),
   turnstileSecret: process.env.TURNSTILE_SECRET, // opcional (Cloudflare Turnstile, gratuito)

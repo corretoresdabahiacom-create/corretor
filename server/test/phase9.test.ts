@@ -45,4 +45,17 @@ describe('Fase 9 — arquivos no Postgres (STORAGE_DRIVER=db)', () => {
     expect((await A.admin.post('/api/auth/account/delete', { password: 'senhaSegura123', confirm: 'EXCLUIR' })).status).toBe(200);
     expect((await q('SELECT 1 FROM blobs WHERE org_id=$1', [org.org_id])).length).toBe(0);
   });
+
+  it('lê um trecho (Range) direto do banco, para vídeo', async () => {
+    const A = await newOrg(app, 'BlobR');
+    const org = (await q1<any>('SELECT org_id FROM users WHERE email=$1', [A.email])).org_id;
+    const key = `${org}/00000000-0000-4000-8000-00000000abcd`;
+    const data = Buffer.from('0123456789abcdefghij');
+    await storage().put(key, data, 'video/mp4');
+    expect((await storage().range(key, 0, 3)).toString()).toBe('0123');
+    expect((await storage().range(key, 10, 19)).toString()).toBe('abcdefghij');
+    expect((await storage().range(key, 18, 40)).toString()).toBe('ij');
+    await storage().del(key);
+    await expect(storage().range(key, 0, 3)).rejects.toThrow();
+  });
 });

@@ -31,6 +31,13 @@ function PropertyForm({ initial, onSaved, onClose }: { initial?: any; onSaved: (
     area_unit: 'm2', rural_details: {}, coastal_details: {}, publish_authorized: false, show_exact_location: false, show_price: true, internal_notes: '', ...initial,
   }));
   const [step, setStep] = useState(0);
+  const [geoBusy, setGeoBusy] = useState(false); const [geoMsg, setGeoMsg] = useState('');
+  const locate = async () => {
+    const a = f.address ?? {}; const query = [a.logradouro, a.numero, a.bairro, a.cidade, a.uf].filter(Boolean).join(', ');
+    setGeoMsg(''); setGeoBusy(true);
+    try { const r = await get(`/api/geocode?q=${encodeURIComponent(query)}`); setF((x: any) => ({ ...x, latitude: Number(r.lat.toFixed(6)), longitude: Number(r.lng.toFixed(6)) })); setGeoMsg(`Encontrado: ${r.label}`); }
+    catch (e) { setGeoMsg(e instanceof ApiError ? e.message : 'Não foi possível localizar.'); } finally { setGeoBusy(false); }
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
   const set = (k: string, v: any) => setF((s: any) => ({ ...s, [k]: v }));
@@ -80,6 +87,9 @@ function PropertyForm({ initial, onSaved, onClose }: { initial?: any; onSaved: (
             <Field label="Latitude" hint="Opcional. Ex.: -22.9056"><input inputMode="decimal" value={f.latitude ?? ''} onChange={(e) => set('latitude', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} /></Field>
             <Field label="Longitude" hint="Opcional. Ex.: -47.0608"><input inputMode="decimal" value={f.longitude ?? ''} onChange={(e) => set('longitude', e.target.value === '' ? null : Number(e.target.value.replace(',', '.')))} /></Field>
           </div>
+          <div className="row"><button type="button" className="btn small" disabled={geoBusy} onClick={locate}>{geoBusy ? 'Buscando…' : 'Localizar pelo endereço'}</button>
+            <span className="small muted">Preenche latitude e longitude para o mapa. Sem “mostrar localização exata”, o site público mostra só uma região aproximada.</span></div>
+          {geoMsg && <div className="alert warn small" role="status">{geoMsg}</div>}
         </>}
         {step === 2 && <>
           {f.purposes.includes('venda') && <Money label="Preço de venda (R$)" value={f.price_sale} onChange={(n) => set('price_sale', n)} error={errors.price_sale} />}

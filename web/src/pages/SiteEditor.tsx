@@ -3,7 +3,7 @@ import { ApiError, del, get, patch, upload } from '../api';
 import { Async, Field, useAsync, useConfirm, useToast } from '../ui';
 import { Icon } from '../icons';
 
-const SECTION_LABEL: Record<string, string> = { destaques: 'Destaques', imoveis: 'Imóveis com filtros', servicos: 'Serviços', sobre: 'Sobre nós', videos: 'Vídeos', galeria: 'Galeria de fotos', avaliacao: 'Avaliação de imóveis', contato: 'Contato' };
+const SECTION_LABEL: Record<string, string> = { destaques: 'Destaques', imoveis: 'Imóveis com filtros', servicos: 'Serviços', sobre: 'Sobre nós', videos: 'Vídeos', galeria: 'Galeria de fotos', avaliacao: 'Avaliação de imóveis', mapa: 'Mapa dos imóveis', contato: 'Contato' };
 export const PRESETS: [string, string, string][] = [['Claro', '#f6f7f9', '#1f2937'], ['Branco', '#ffffff', '#111827'], ['Areia', '#f7f2ea', '#2b2118'], ['Verde-água', '#eef7f5', '#12302c'], ['Escuro', '#0f141a', '#eef2f6'], ['Azul-noite', '#0b1426', '#e8eefb']];
 const HEX = /^#[0-9a-fA-F]{6}$/;
 

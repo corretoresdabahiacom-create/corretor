@@ -63,6 +63,13 @@ export async function contractRoutes(app: FastifyInstance) {
         if (d <= 60 && next < end) out.push({ ...base, type: 'reajuste', severity: 'baixa', days: d, message: `Reajuste${c.adjustment_index ? ' (' + c.adjustment_index + ')' : ''} no mês ${c.adjustment_month}, em ~${d} dia(s).` });
       }
     }
+    const late = await q<any>(`SELECT c.id, pr.title AS property_title, COALESCE(t.display_name,t.name) AS counterparty_name, count(*)::int AS n, COALESCE(sum(p.amount - COALESCE(p.paid_amount,0)),0) AS total, min(p.due_date) AS since
+      FROM contract_payments p JOIN contracts c ON c.id=p.contract_id JOIN properties pr ON pr.id=c.property_id JOIN people t ON t.id=c.counterparty_person_id
+      WHERE p.org_id=$1 AND c.status='ativo' AND p.due_date < (now() AT TIME ZONE 'America/Sao_Paulo')::date AND (p.paid_amount IS NULL OR p.paid_amount < p.amount) GROUP BY c.id, pr.title, t.display_name, t.name`, [req.user!.orgId]);
+    for (const l of late) {
+      const dias = Math.round((today.getTime() - new Date(String(l.since instanceof Date ? l.since.toISOString() : l.since).slice(0, 10) + 'T00:00:00Z').getTime()) / day);
+      out.push({ contract_id: l.id, property_title: l.property_title, counterparty_name: l.counterparty_name, type: 'pagamento_atrasado', severity: 'alta', days: -dias, message: `${l.n} parcela(s) em atraso, R$ ${Number(l.total).toFixed(2).replace('.', ',')} em aberto.` });
+    }
     return out.sort((a, b) => a.days - b.days);
   });
 

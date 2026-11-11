@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ApiError, get, patch, post } from '../api';
+import { ApiError, api, get, patch, post } from '../api';
 import { useSession } from '../session';
 import { Async, Empty, Field, Modal, StatusChip, useAsync, useConfirm, useToast } from '../ui';
 import { brl, dateBR, L } from '../format';
@@ -12,6 +12,15 @@ export function ContractAlerts() {
       {a.slice(0, 6).map((x, i) => <div key={i} className={`alert ${x.severity === 'alta' ? 'err' : x.severity === 'media' ? 'warn' : ''} small`}><b>{x.property_title}</b> · {x.counterparty_name}<br />{x.message}</div>)}
     </section>
   )}</Async>;
+}
+
+function PaymentSummary() {
+  const st = useAsync(() => get('/api/contract-payments/summary'), []);
+  return <Async state={st}>{(s: any) => (Number(s.esperado) || Number(s.em_atraso)) ? (
+    <section className="card stack"><h2>Recebimentos do mês</h2>
+      <div className="chips"><span className="chip">Esperado {brl(Number(s.esperado))}</span><span className="chip ok">Recebido {brl(Number(s.recebido))}</span>{Number(s.em_atraso) > 0 && <span className="chip bad">Em atraso {brl(Number(s.em_atraso))} ({s.parcelas_atrasadas} parcela(s))</span>}</div>
+      {s.atrasadas?.slice(0, 5).map((p: any) => <div key={p.id} className="small"><b>{p.property_title}</b> · {p.counterparty_name} · venceu {dateBR(p.due_date)} ({p.dias} dia(s)) · {brl(Number(p.amount) - Number(p.paid_amount ?? 0))}</div>)}
+    </section>) : null}</Async>;
 }
 
 function ContractForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -53,6 +62,57 @@ function ContractForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   );
 }
 
+
+const METHODS: Record<string, string> = { pix: 'Pix', boleto: 'Boleto', transferencia: 'Transferência', dinheiro: 'Dinheiro', outro: 'Outro' };
+const PAY_CHIP: Record<string, string> = { pago: 'ok', parcial: 'warn', atrasado: 'bad', pendente: '' };
+const today = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+const num = (v: string) => Number(String(v).replace(/\./g, '').replace(',', '.'));
+
+/** Parcelas, baixas, reajuste e renovação de um contrato ativo (somente leitura nos demais). */
+function FinancePanel({ c, canWrite, onRenewed }: { c: any; canWrite: boolean; onRenewed: (id: string) => void }) {
+  const toast = useToast(); const { ask, node } = useConfirm();
+  const pay = useAsync(() => get(`/api/contracts/${c.id}/payments`), [c.id]);
+  const adj = useAsync(() => get(`/api/contracts/${c.id}/adjustments`), [c.id]);
+  const [paying, setPaying] = useState<any>(null); const [pf, setPf] = useState<any>({});
+  const [mode, setMode] = useState<'' | 'ajuste' | 'renovar'>(''); const [af, setAf] = useState<any>({ percent: '', effective_date: today(), note: '' }); const [rf, setRf] = useState<any>({ new_end_date: '', percent: '', value_amount: '' });
+  const [err, setErr] = useState('');
+  const run = async (fn: () => Promise<any>, ok: string) => { setErr(''); try { const r = await fn(); toast(ok); pay.reload(); adj.reload(); return r; } catch (e) { setErr(e instanceof ApiError ? (e.body.fields?.[0]?.message ?? e.message) : 'Erro'); } };
+  const active = c.status === 'ativo';
+  if (!active && c.status !== 'encerrado' && c.status !== 'rescindido') return null;
+  return (
+    <section className="stack"><h3>Parcelas e pagamentos</h3>
+      {err && <div className="alert err" role="alert">{err}</div>}
+      {canWrite && active && <div className="row"><button className="btn small" onClick={() => run(() => post(`/api/contracts/${c.id}/payments/generate`), 'Parcelas atualizadas')}>Gerar parcelas do prazo</button>
+        <button className="btn small" onClick={() => setMode(mode === 'ajuste' ? '' : 'ajuste')}>Reajustar valor</button>
+        <button className="btn small" onClick={() => setMode(mode === 'renovar' ? '' : 'renovar')}>Renovar contrato</button></div>}
+      {mode === 'ajuste' && <div className="card stack"><div className="grid g2"><Field label="Percentual (%)"><input inputMode="decimal" placeholder="ex.: 4,5" value={af.percent} onChange={(e) => setAf({ ...af, percent: e.target.value })} /></Field><Field label="Vale a partir de"><input type="date" value={af.effective_date} onChange={(e) => setAf({ ...af, effective_date: e.target.value })} /></Field></div>
+        <Field label="Observação (índice, fonte)"><input value={af.note} onChange={(e) => setAf({ ...af, note: e.target.value })} /></Field>
+        <p className="small muted">Você informa o percentual (o app não busca índices oficiais). Parcelas já pagas não mudam.</p>
+        <button className="btn primary" onClick={async () => { if (await ask(`Reajustar em ${af.percent || 0}% a partir de ${dateBR(af.effective_date)}?`, 'Reajustar')) { const r = await run(() => post(`/api/contracts/${c.id}/adjust`, { percent: num(af.percent), effective_date: af.effective_date, note: af.note || undefined }), 'Reajuste aplicado'); if (r) { setMode(''); c.value_amount = r.new_amount; } } }}>Aplicar reajuste</button></div>}
+      {mode === 'renovar' && <div className="card stack"><Field label="Novo fim do contrato"><input type="date" value={rf.new_end_date} onChange={(e) => setRf({ ...rf, new_end_date: e.target.value })} /></Field>
+        <div className="grid g2"><Field label="Reajuste na renovação (%)"><input inputMode="decimal" value={rf.percent} onChange={(e) => setRf({ ...rf, percent: e.target.value, value_amount: '' })} /></Field><Field label="ou novo valor (R$)"><input inputMode="decimal" value={rf.value_amount} onChange={(e) => setRf({ ...rf, value_amount: e.target.value, percent: '' })} /></Field></div>
+        <p className="small muted">O contrato atual será encerrado como “Renovado” e um novo, já ativo, começa no fim dele. O imóvel continua ocupado.</p>
+        <button className="btn primary" onClick={async () => { if (await ask('Renovar este contrato?', 'Renovar')) { const r = await run(() => post(`/api/contracts/${c.id}/renew`, { new_end_date: rf.new_end_date, percent: rf.percent ? num(rf.percent) : undefined, value_amount: rf.value_amount ? num(rf.value_amount) : undefined }), 'Contrato renovado'); if (r) onRenewed(r.id); } }}>Renovar</button></div>}
+      <Async state={pay}>{(rows: any[]) => !rows.length ? <Empty>{active ? 'Sem parcelas ainda. Use “Gerar parcelas do prazo”.' : 'Sem parcelas registradas.'}</Empty> : <div className="list">{rows.map((p) => (
+        <div className="item" key={p.id} style={{ alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}><b>{dateBR(p.due_date)}</b> · {brl(p.amount)} <span className={`chip ${PAY_CHIP[p.status] ?? ''}`}>{p.status}</span>{!p.generated && <span className="chip">avulsa</span>}
+            {p.paid_amount != null && <div className="small muted">Pago {brl(p.paid_amount)} em {dateBR(p.paid_at)} · {METHODS[p.method] ?? p.method ?? '—'}</div>}{p.note && <div className="small muted">{p.note}</div>}</div>
+          {canWrite && <div className="stack">
+            {p.status !== 'pago' && <button className="btn small primary" onClick={() => { setPaying(p); setPf({ paid_amount: String(p.amount).replace('.', ','), paid_at: today(), method: 'pix' }); }}>Dar baixa</button>}
+            {p.paid_amount != null && <button className="btn small" onClick={() => run(() => post(`/api/contract-payments/${p.id}/unpay`), 'Baixa desfeita')}>Desfazer</button>}
+            {p.paid_amount == null && !p.generated && <button className="btn small" onClick={() => run(() => api('DELETE', `/api/contract-payments/${p.id}`), 'Cobrança excluída')}>Excluir</button>}</div>}
+        </div>))}</div>}</Async>
+      {paying && <Modal title={`Baixa de ${dateBR(paying.due_date)}`} onClose={() => setPaying(null)}><div className="stack">
+        <Field label="Valor recebido (R$)"><input inputMode="decimal" value={pf.paid_amount} onChange={(e) => setPf({ ...pf, paid_amount: e.target.value })} /></Field>
+        <div className="grid g2"><Field label="Data"><input type="date" max={today()} value={pf.paid_at} onChange={(e) => setPf({ ...pf, paid_at: e.target.value })} /></Field><Field label="Forma"><select value={pf.method} onChange={(e) => setPf({ ...pf, method: e.target.value })}>{Object.entries(METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field></div>
+        <p className="small muted">Valor menor que a parcela fica como “parcial”.</p>
+        <button className="btn primary" onClick={async () => { const r = await run(() => post(`/api/contract-payments/${paying.id}/pay`, { paid_amount: num(pf.paid_amount), paid_at: pf.paid_at, method: pf.method }), 'Pagamento registrado'); if (r) setPaying(null); }}>Registrar</button></div></Modal>}
+      <Async state={adj}>{(rows: any[]) => !rows.length ? null : <><h3>Histórico de reajustes</h3><div className="list">{rows.map((a) => <div className="item" key={a.id}><div>{dateBR(a.effective_date)} · <b>{Number(a.percent).toLocaleString('pt-BR')}%</b> · {brl(a.old_amount)} → {brl(a.new_amount)}{a.index_name ? ` (${a.index_name})` : ''}{a.note && <div className="small muted">{a.note}</div>}</div></div>)}</div></>}</Async>
+      {node}
+    </section>
+  );
+}
+
 function ContractModal({ c, onClose, onChanged }: { c: any; onClose: () => void; onChanged: () => void }) {
   const { can } = useSession(); const toast = useToast(); const { ask, node } = useConfirm();
   const [err, setErr] = useState(''); const [closing, setClosing] = useState(false); const [reason, setReason] = useState(''); const [kind, setKind] = useState('encerrado');
@@ -74,6 +134,7 @@ function ContractModal({ c, onClose, onChanged }: { c: any; onClose: () => void;
         {w && c.status === 'rascunho' && <button className="btn primary" onClick={async () => { if (await ask('Ativar o contrato? O imóvel passará para alugado/arrendado.', 'Ativar')) run(() => post(`/api/contracts/${c.id}/activate`), 'Contrato ativado'); }}>Ativar contrato</button>}
         {w && c.status === 'ativo' && !closing && <button className="btn danger" onClick={() => setClosing(true)}>Encerrar / rescindir…</button>}
         {closing && <><Field label="Situação"><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="encerrado">Encerrado (fim do prazo)</option><option value="rescindido">Rescindido</option></select></Field><Field label="Motivo"><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field><button className="btn danger" disabled={reason.trim().length < 3} onClick={() => run(() => post(`/api/contracts/${c.id}/close`, { status: kind, reason }), 'Contrato encerrado')}>Confirmar</button></>}
+        <FinancePanel c={c} canWrite={w} onRenewed={async (id) => { onChanged(); onClose(); }} />
         <FilesPanel base={`/api/contracts/${c.id}`} canWrite={w} />
       </div>
       {node}
@@ -89,6 +150,7 @@ export default function Contracts() {
     <>
       <div className="row"><h1>Contratos</h1>{can('contracts.write') && <button className="btn primary right" onClick={() => setCreating(true)}>+ Contrato</button>}</div>
       <ContractAlerts />
+      <PaymentSummary />
       <div className="row" style={{ marginBottom: '.6rem' }}>{[['ativo', 'Ativos'], ['rascunho', 'Rascunhos'], ['encerrado', 'Encerrados'], ['', 'Todos']].map(([k, l]) => <button key={k} className={`btn small ${status === k ? 'primary' : ''}`} onClick={() => setStatus(k)}>{l}</button>)}</div>
       <Async state={st}>{(rows: any[]) => !rows.length ? <Empty>Nenhum contrato aqui. Registre locações e arrendamentos para receber alertas de vencimento e reajuste.</Empty> : <div className="list">{rows.map((c) => <button key={c.id} className="item" style={{ textAlign: 'left' }} onClick={() => setSel(c)}><div style={{ flex: 1 }}><b>{c.property_title}</b><div className="small muted">{L(c.kind)} · {c.counterparty_name} · até {dateBR(c.end_date)}</div></div><div>{brl(c.value_amount)}</div></button>)}</div>}</Async>
       {creating && <ContractForm onClose={() => setCreating(false)} onSaved={() => { setCreating(false); st.reload(); }} />}

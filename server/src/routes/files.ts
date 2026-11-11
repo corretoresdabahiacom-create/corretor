@@ -6,22 +6,24 @@ import { q, q1, tx } from '../db/pool.js';
 import { audit, requireAuth, requirePerm } from '../lib/auth.js';
 import { can, type Permission } from '../lib/permissions.js';
 import { config } from '../lib/config.js';
-import { storage, sniffMime } from '../lib/storage.js';
+import { storage, sniffMime, sniffVideo } from '../lib/storage.js';
+import { sendMedia } from '../lib/media.js';
 
 const MAX_PHOTOS = 40;
+const MAX_VIDEOS = 3;
 const DOC_TYPES = ['matricula', 'ccir', 'itr', 'car', 'escritura', 'iptu', 'contrato', 'procuracao', 'laudo', 'identidade', 'comprovante', 'outro'];
 type Owner = { column: 'property_id' | 'person_id' | 'contract_id'; id: string };
 
 /** Permissão necessária para LER um arquivo, conforme a quem ele pertence e a categoria. */
 function readPerm(f: { category: string; property_id: string | null; person_id: string | null }): Permission {
   if (f.person_id) return 'people.document';
-  if (f.property_id) return f.category === 'foto' ? 'properties.read' : 'properties.internal';
+  if (f.property_id) return f.category !== 'documento' ? 'properties.read' : 'properties.internal';
   return 'contracts.read';
 }
 function writePerm(owner: Owner, category: string): Permission[] {
   if (owner.column === 'person_id') return ['people.document', 'people.write'];
   if (owner.column === 'contract_id') return ['contracts.write'];
-  return category === 'foto' ? ['properties.write'] : ['properties.write', 'properties.internal'];
+  return category !== 'documento' ? ['properties.write'] : ['properties.write', 'properties.internal'];
 }
 
 async function ownerExists(orgId: string, o: Owner) {
@@ -39,27 +41,36 @@ export async function fileRoutes(app: FastifyInstance) {
   async function upload(req: FastifyRequest, reply: any, owner: Owner) {
     const user = req.user!;
     if (!(await ownerExists(user.orgId, owner))) return reply.code(404).send({ error: 'Registro não encontrado.' });
-    const part = await req.file();
+    const part = await req.file({ limits: { fileSize: config.maxVideoBytes } }); // vídeo é maior; os demais tipos são limitados abaixo
     if (!part) return reply.code(400).send({ error: 'Envie um arquivo.' });
     const fields = Object.fromEntries(Object.entries(part.fields).filter(([, v]: any) => v && 'value' in v).map(([k, v]: any) => [k, v.value]));
     const meta = z
       .object({
-        category: z.enum(['foto', 'documento']).default(owner.column === 'property_id' ? 'foto' : 'documento'),
+        category: z.enum(['foto', 'documento', 'video']).default(owner.column === 'property_id' ? 'foto' : 'documento'),
         doc_type: z.enum(DOC_TYPES as [string, ...string[]]).optional(),
         visibility: z.enum(['privado', 'publico']).default('privado'),
         caption: z.string().max(200).optional(),
       })
       .parse(fields);
-    if (meta.category === 'foto' && owner.column !== 'property_id') return reply.code(400).send({ error: 'Fotos só podem ser anexadas a imóveis.' });
+    if ((meta.category === 'foto' || meta.category === 'video') && owner.column !== 'property_id') return reply.code(400).send({ error: 'Fotos e vídeos só podem ser anexados a imóveis.' });
     if (!writePerm(owner, meta.category).every((p) => can(user.role, p))) return reply.code(403).send({ error: 'Você não tem permissão para esta ação.' });
     if (meta.category === 'documento') meta.visibility = 'privado'; // documentos nunca são públicos
 
+    const isVideo = meta.category === 'video';
+    const limit = isVideo ? config.maxVideoBytes : config.maxUploadBytes;
+    const tooBig = () => reply.code(413).send({ error: `Arquivo maior que ${Math.round(limit / 1024 / 1024)} MB.` });
     let buf: Buffer;
-    try { buf = await part.toBuffer(); } catch { return reply.code(413).send({ error: `Arquivo maior que ${config.maxUploadBytes / 1024 / 1024} MB.` }); }
-    if (part.file.truncated) return reply.code(413).send({ error: `Arquivo maior que ${config.maxUploadBytes / 1024 / 1024} MB.` });
-    const mime = sniffMime(buf);
+    try { buf = await part.toBuffer(); } catch { return tooBig(); }
+    if (part.file.truncated || buf.length > limit) return tooBig();
+    const mime = isVideo ? sniffVideo(buf) : sniffMime(buf);
     if (!mime || (meta.category === 'foto' && mime === 'application/pdf')) {
-      return reply.code(415).send({ error: meta.category === 'foto' ? 'Foto deve ser JPG, PNG ou WebP.' : 'Documento deve ser PDF, JPG, PNG ou WebP.' });
+      return reply.code(415).send({ error: isVideo ? 'Vídeo deve ser MP4 (H.264) ou WebM.' : meta.category === 'foto' ? 'Foto deve ser JPG, PNG ou WebP.' : 'Documento deve ser PDF, JPG, PNG ou WebP.' });
+    }
+    if (isVideo) {
+      const n = await q1<{ n: number; total: string }>(`SELECT count(*)::int n, COALESCE(sum(size_bytes) FILTER (WHERE true),0)::text total FROM files WHERE org_id=$1 AND category='video' AND property_id=$2`, [user.orgId, owner.id]);
+      if ((n?.n ?? 0) >= MAX_VIDEOS) return reply.code(409).send({ error: `Limite de ${MAX_VIDEOS} vídeos por imóvel.` });
+      const org = await q1<{ total: string }>(`SELECT COALESCE(sum(size_bytes),0)::text total FROM files WHERE org_id=$1 AND category='video'`, [user.orgId]);
+      if (Number(org?.total ?? 0) + buf.length > config.maxOrgVideoBytes) return reply.code(409).send({ error: `Limite de ${Math.round(config.maxOrgVideoBytes / 1024 / 1024)} MB em vídeos por imobiliária atingido. Exclua algum vídeo ou use um link do YouTube/Vimeo.` });
     }
     if (meta.category === 'foto') {
       const n = await q1<{ n: number }>(`SELECT count(*)::int n FROM files WHERE org_id=$1 AND property_id=$2 AND category='foto'`, [user.orgId, owner.id]);
@@ -111,6 +122,7 @@ export async function fileRoutes(app: FastifyInstance) {
 
   app.get('/api/files/:id/download', { preHandler: requireAuth }, async (req, reply) => {
     const f = await loadFile(req, reply); if (!f) return;
+    if (f.category === 'video') return sendMedia(req, reply, f, 'private, no-store');
     const data = await storage().get(f.storage_key);
     await audit(req, 'file.download', 'file', f.id);
     return reply
@@ -137,7 +149,7 @@ export async function fileRoutes(app: FastifyInstance) {
     const owner: Owner = f.property_id ? { column: 'property_id', id: f.property_id } : f.person_id ? { column: 'person_id', id: f.person_id } : { column: 'contract_id', id: f.contract_id };
     if (!writePerm(owner, f.category).every((p) => can(req.user!.role, p))) return reply.code(403).send({ error: 'Você não tem permissão para esta ação.' });
     const b = z.object({ caption: z.string().max(200).nullable().optional(), position: z.number().int().min(0).optional(), is_cover: z.literal(true).optional(), visibility: z.enum(['privado', 'publico']).optional() }).parse(req.body);
-    if (b.visibility === 'publico' && f.category !== 'foto') return reply.code(400).send({ error: 'Somente fotos podem ser públicas.' });
+    if (b.visibility === 'publico' && f.category === 'documento') return reply.code(400).send({ error: 'Somente fotos e vídeos podem ser públicos.' });
     if (b.is_cover && f.category !== 'foto') return reply.code(400).send({ error: 'Somente fotos podem ser capa.' });
     const row = await tx(async (c) => {
       if (b.is_cover) await c.query(`UPDATE files SET is_cover=false WHERE org_id=$1 AND property_id=$2`, [req.user!.orgId, f.property_id]);

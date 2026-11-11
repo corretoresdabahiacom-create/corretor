@@ -18,6 +18,9 @@ import { calendarRoutes } from './routes/calendar.js';
 import { vitrineRoutes } from './routes/vitrine.js';
 import { seoRoutes } from './routes/seo.js';
 import { contractRoutes } from './routes/contracts.js';
+import { contractFinanceRoutes } from './routes/contractFinance.js';
+import { geoRoutes } from './routes/geo.js';
+import { privacyRoutes } from './routes/privacy.js';
 
 export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } = {}) {
   const app = Fastify({
@@ -35,7 +38,7 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
         // 'unsafe-inline' é necessário para o script/estilo da página pública /p (conteúdo sempre escapado e testado).
         scriptSrc: ["'self'", "'unsafe-inline'", 'https://challenges.cloudflare.com'],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:'],
+        imgSrc: ["'self'", 'data:', 'https://tile.openstreetmap.org'], // tiles do mapa (OpenStreetMap)
         frameSrc: ["'self'", 'https://challenges.cloudflare.com', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
@@ -46,7 +49,7 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
     },
   });
   await app.register(cookie);
-  await app.register(multipart, { limits: { fileSize: config.maxUploadBytes, files: 1, fields: 10 } }); // global: uploads de arquivos e logomarca
+  await app.register(multipart, { limits: { fileSize: config.maxUploadBytes, files: 1, fields: 10 } }); // global: uploads de arquivos e logomarca (vídeo de imóvel sobrescreve o limite na própria rota)
   await app.register(rateLimit, { global: false, max: opts.rateLimit === false ? 100000 : 100, timeWindow: '1 minute' });
 
   app.setErrorHandler((err: any, _req, reply) => {
@@ -73,6 +76,9 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
   await app.register(insightRoutes);
   await app.register(fileRoutes);
   await app.register(contractRoutes);
+  await app.register(contractFinanceRoutes);
+  await app.register(geoRoutes);
+  await app.register(privacyRoutes);
   await app.register(portalRoutes);
   await app.register(calendarRoutes);
   await app.register(vitrineRoutes);

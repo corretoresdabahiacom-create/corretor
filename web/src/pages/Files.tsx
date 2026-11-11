@@ -9,22 +9,22 @@ const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${M
 export function FilesPanel({ base, photos = false, canWrite, canDocs = true }: { base: string; photos?: boolean; canWrite: boolean; canDocs?: boolean }) {
   const st = useAsync(() => get(`${base}/files`), [base]);
   const toast = useToast(); const { ask, node } = useConfirm();
-  const photoIn = useRef<HTMLInputElement>(null); const docIn = useRef<HTMLInputElement>(null);
+  const videoIn = useRef<HTMLInputElement>(null); const photoIn = useRef<HTMLInputElement>(null); const docIn = useRef<HTMLInputElement>(null);
   const [docType, setDocType] = useState('matricula'); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  const send = async (files: FileList | null, category: 'foto' | 'documento') => {
+  const send = async (files: FileList | null, category: 'foto' | 'documento' | 'video') => {
     if (!files?.length) return;
     setBusy(true); setErr('');
     try {
-      for (const f of Array.from(files)) await upload(`${base}/files`, f, category === 'foto' ? { category } : { category, doc_type: docType });
+      for (const f of Array.from(files)) await upload(`${base}/files`, f, category === 'documento' ? { category, doc_type: docType } : { category });
       toast(files.length > 1 ? 'Arquivos enviados' : 'Arquivo enviado');
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Erro ao enviar'); }
-    finally { setBusy(false); st.reload(); if (photoIn.current) photoIn.current.value = ''; if (docIn.current) docIn.current.value = ''; }
+    finally { setBusy(false); st.reload(); if (photoIn.current) photoIn.current.value = ''; if (videoIn.current) videoIn.current.value = ''; if (docIn.current) docIn.current.value = ''; }
   };
   const remove = async (f: any) => { if (await ask(`Excluir “${f.filename}”? Esta ação não pode ser desfeita.`, 'Excluir')) { await del(`/api/files/${f.id}`); st.reload(); } };
   return (
     <Async state={st}>
       {(files: any[]) => {
-        const ph = files.filter((f) => f.category === 'foto'); const docs = files.filter((f) => f.category === 'documento');
+        const ph = files.filter((f) => f.category === 'foto'); const vids = files.filter((f) => f.category === 'video'); const docs = files.filter((f) => f.category === 'documento');
         return (
           <>
             {photos && (
@@ -41,6 +41,18 @@ export function FilesPanel({ base, photos = false, canWrite, canDocs = true }: {
                     </figure>
                   ))}</div>
                 )}
+              </section>
+            )}
+            {photos && (
+              <section className="card stack">
+                <div className="row"><h2>Vídeos enviados ({vids.length})</h2>{canWrite && <><input ref={videoIn} type="file" accept="video/mp4,video/webm" hidden onChange={(e) => send(e.target.files, 'video')} /><button className="btn small right" disabled={busy || vids.length >= 3} onClick={() => videoIn.current?.click()}>{busy ? 'Enviando…' : '+ Enviar vídeo'}</button></>}</div>
+                <p className="small muted">MP4 (H.264) ou WebM, até 30 MB, no máximo 3 por imóvel. O app não converte o vídeo: se ele não tocar, exporte como MP4/H.264. Para vídeos longos, prefira um link do YouTube ou Vimeo. Só vídeos marcados como públicos aparecem na página do imóvel.</p>
+                {!vids.length ? <p className="muted small">Nenhum vídeo enviado.</p> : <div className="stack">{vids.map((f) => (
+                  <div key={f.id} className="stack">
+                    <video controls preload="metadata" playsInline src={f.url} style={{ width: '100%', maxHeight: '40vh', borderRadius: 'var(--radius-sm)', background: '#000' }} aria-label={f.caption || f.filename} />
+                    <div className="row small"><span className="muted">{f.filename} · {kb(f.size_bytes)}</span><span className={`chip ${f.visibility === 'publico' ? 'warn' : 'gray'}`}>{f.visibility === 'publico' ? 'Público' : 'Privado'}</span>
+                      {canWrite && <><button className="btn small right" onClick={async () => { await patch(`/api/files/${f.id}`, { visibility: f.visibility === 'publico' ? 'privado' : 'publico' }); st.reload(); }}>{f.visibility === 'publico' ? 'Tornar privado' : 'Tornar público'}</button><button className="btn small danger" onClick={() => remove(f)}>Excluir</button></>}</div>
+                  </div>))}</div>}
               </section>
             )}
             {canDocs && (

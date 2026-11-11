@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { q, q1, tx } from '../db/pool.js';
 import { audit, requirePerm } from '../lib/auth.js';
 import { config } from '../lib/config.js';
+import { mapPoint } from '../lib/geo.js';
+import { sendMedia } from '../lib/media.js';
 import { isValidPhone, normalizePhone } from '../lib/validators.js';
 import { limitProblem, usage } from '../lib/plans.js';
 import { storage } from '../lib/storage.js';
@@ -34,17 +36,20 @@ export async function loadPublic(code: string) {
        FROM properties p JOIN organizations o ON o.id=p.org_id WHERE p.public_code=$1 AND p.published_at IS NOT NULL AND p.status<>'arquivado'`, [code]);
   if (!p) return null;
   const photos = await q<any>(`SELECT id,caption,is_cover FROM files WHERE property_id=$1 AND category='foto' AND visibility='publico' ORDER BY is_cover DESC, position LIMIT 40`, [p.id]);
+  const vfiles = await q<any>(`SELECT id,caption,mime FROM files WHERE property_id=$1 AND category='video' AND visibility='publico' ORDER BY position, created_at LIMIT 3`, [p.id]);
   const rd = p.rural_details ?? {}; const cd = p.coastal_details ?? {};
   return {
     code: p.public_code, title: p.title, description: p.description, kind: p.kind, subtype: p.subtype, purposes: p.purposes, status: p.status,
     city: p.city, state: p.state, neighborhood: p.neighborhood,
     street: p.show_exact_location ? p.address?.logradouro ?? null : null,
     latitude: p.show_exact_location ? p.latitude : null, longitude: p.show_exact_location ? p.longitude : null,
+    map: mapPoint(p),
     prices: p.show_price ? { venda: p.price_sale, aluguel: p.price_rent, arrendamento: p.price_lease } : null,
     area_total: p.area_total, area_unit: p.area_unit, bedrooms: p.bedrooms, bathrooms: p.bathrooms, parking: p.parking, features: p.features ?? [],
     rural: p.kind === 'rural' ? { water_sources: rd.water_sources ?? [], activities: rd.activities ?? [] } : null, // registro declarado NÃO é público
     coastal: (p.location_tags ?? []).includes('litoral') ? { beach_distance_m: cd.beach_distance_m ?? null, sea_view: !!cd.sea_view } : null,
     videos: Array.isArray(p.videos) ? p.videos : [], org_slug: p.org_slug,
+    video_files: vfiles.map((f) => ({ id: f.id, caption: f.caption, mime: f.mime, url: `/api/public/video/${f.id}` })),
     photos: photos.map((f) => ({ id: f.id, caption: f.caption, url: `/api/public/files/${f.id}` })),
     agency: { name: p.public_name || p.org_name, whatsapp: p.public_whatsapp, badge: p.public_badge || p.plan === 'gratuito', slug: p.org_slug },
     _id: p.id, _org: p.org_id,
@@ -109,6 +114,14 @@ export async function portalRoutes(app: FastifyInstance) {
     const d = await loadPublic(String((req.params as any).code));
     if (!d) return reply.code(404).send({ error: 'Anúncio não encontrado.' });
     const { _id, _org, ...pub } = d; return pub;
+  });
+
+  // Vídeo enviado: só de imóvel publicado, marcado como público; entrega por partes (Range).
+  app.get('/api/public/video/:id', rl(300, '1 minute'), async (req, reply) => {
+    const id = z.string().uuid().safeParse((req.params as any).id);
+    const f = id.success ? await q1<any>(`SELECT f.* FROM files f JOIN properties p ON p.id=f.property_id WHERE f.id=$1 AND f.category='video' AND f.visibility='publico' AND p.published_at IS NOT NULL AND p.status<>'arquivado'`, [id.data]) : null;
+    if (!f) return reply.code(404).send({ error: 'Vídeo não encontrado.' });
+    return sendMedia(req, reply, f, 'public, max-age=3600');
   });
 
   app.get('/api/public/files/:id', rl(300, '1 minute'), async (req, reply) => {

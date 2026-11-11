@@ -1,3 +1,4 @@
+import { mapPoint } from './geo.js';
 import { escXml as esc, onColor, type Brand } from './brand.js';
 import { SECTION_LABEL, embedUrl, filterProps, hasFilters, priceFor, socialUrl, type Filters, type Site } from './site.js';
 
@@ -89,7 +90,7 @@ function head(c: SiteCtx, o: { title: string; desc: string; url: string; img?: s
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(o.title)}"><meta property="og:description" content="${esc(o.desc)}"><meta property="og:url" content="${esc(o.url)}">${o.img ? `<meta property="og:image" content="${esc(o.img)}"><meta name="twitter:card" content="summary_large_image">` : ''}
 ${c.hasLogo ? `<link rel="icon" href="/api/public/brand/${esc(c.org.slug)}/logo">` : ''}${c.preview ? '<meta name="robots" content="noindex">' : ''}
 ${o.ld ? `<script type="application/ld+json">${JSON.stringify(o.ld).replace(/</g, '\\u003c')}</script>` : ''}
-<style>${theme(c)}${CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
+<style>${theme(c)}${CSS}${MAP_CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
 }
 
 const orgName = (c: SiteCtx) => c.org.public_name || c.org.name;
@@ -196,6 +197,10 @@ ${rows.length ? filterForm(c, rows, f, list.length) : ''}${list.length ? `<div c
     videos: () => s.videos.length ? `<section class="sc" id="videos"><div class="w"><div class="st"><h2>Vídeos</h2></div><div class="vds">${s.videos.map((v) => `<div class="vd"><div class="fr"><iframe src="${esc(embedUrl(v))}" title="${esc(v.title || 'Vídeo')}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${v.title ? `<b>${esc(v.title)}</b>` : ''}</div>`).join('')}</div></div></section>` : '',
     galeria: () => s.gallery.length ? `<section class="sc" id="galeria"><div class="w"><div class="st"><h2>Galeria</h2></div><div class="gal">${s.gallery.map((g) => `<figure><img src="${esc(siteImg(c.org.slug, g.id, 600))}" alt="${esc(g.caption)}" loading="lazy">${g.caption ? `<figcaption>${esc(g.caption)}</figcaption>` : ''}</figure>`).join('')}</div></div></section>` : '',
     avaliacao: () => `<section class="sc" id="avaliacao"><div class="w">${appraisal(c, appraisalToken, consent)}</div></section>`,
+    mapa: () => {
+      const pts: MapPt[] = list.slice(0, 200).flatMap((r) => { const m = mapPoint(r); return m ? [{ ...m, t: r.title, c: [r.neighborhood, r.city].filter(Boolean).join(', '), u: `${root}/imovel/${r.public_code}` }] : []; });
+      return pts.length ? `<section class="sc" id="mapa"><div class="w"><div class="st"><div><h2>Mapa dos imóveis</h2><p>Clique no ponto para ver o imóvel.</p></div></div>${mapEmbed(pts)}${pts.some((x) => !x.exact) ? '<p class="mapn">Os círculos indicam a região aproximada; o endereço exato não é divulgado.</p>' : ''}</div></section>` : '';
+    },
     contato: () => contactBlock(c),
   };
   const body = s.sections.filter((x) => x.on).map((x) => sec[x.id]?.() ?? '').join('');
@@ -222,6 +227,20 @@ export function vcard(c: SiteCtx): string | null {
   return L.join('\r\n') + '\r\n';
 }
 
+
+// ---- Mapa (Leaflet servido em /vendor, tiles do OpenStreetMap) ----
+const MAP_CSS = `.map{height:380px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);position:relative;z-index:0;background:color-mix(in srgb,var(--tx) 6%,var(--bg))}.map .leaflet-popup-content{font:14px/1.4 var(--fb);margin:10px 12px}.map .leaflet-popup-content a{font-weight:700;color:var(--p)}.pin{background:none;border:0}.pin span{display:block;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--p);border:3px solid #fff;box-shadow:0 2px 6px #0006}.mapn{margin:8px 0 0;font-size:.85rem;color:var(--mut)}`;
+type MapPt = { lat: number; lng: number; exact: boolean; t?: string; c?: string; u?: string };
+const MAP_JS = `(function(){var el=document.getElementById('mp');if(!el||!window.L)return;var pts=[];try{pts=JSON.parse(el.getAttribute('data-pts')||'[]')}catch(e){}if(!pts.length)return;
+var col=getComputedStyle(document.documentElement).getPropertyValue('--p')||'#0f766e';var m=L.map(el,{scrollWheelZoom:false});
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'}).addTo(m);
+var b=[];pts.forEach(function(p){var ll=[p.lat,p.lng];b.push(ll);
+var ly=p.exact?L.marker(ll,{icon:L.divIcon({className:'pin',html:'<span></span>',iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-24]})}):L.circle(ll,{radius:900,color:col,weight:2,fillColor:col,fillOpacity:.18});
+ly.addTo(m);if(p.t){var d=document.createElement('div');var s=document.createElement('strong');s.textContent=p.t;d.appendChild(s);if(p.c){d.appendChild(document.createElement('br'));d.appendChild(document.createTextNode(p.c))}
+if(p.u&&p.u.charAt(0)==='/'){d.appendChild(document.createElement('br'));var a=document.createElement('a');a.href=p.u;a.textContent='Ver imóvel →';d.appendChild(a)}ly.bindPopup(d)}});
+if(b.length===1)m.setView(b[0],pts[0].exact?16:14);else m.fitBounds(b,{padding:[30,30],maxZoom:15});})();`;
+const mapEmbed = (pts: MapPt[]) => `<link rel="stylesheet" href="/vendor/leaflet.css"><div id="mp" class="map" role="region" aria-label="Mapa" data-pts="${esc(JSON.stringify(pts))}"></div><script src="/vendor/leaflet.js"></script><script>${MAP_JS}</script>`;
+
 function contactBlock(c: SiteCtx) {
   const k = c.site.contact, wa = waLink(whats(c), `Olá! Vim pelo site da ${orgName(c)}.`);
   const items = [wa && `<a href="${esc(wa)}" rel="noopener">${ic('wa')}<span><b>WhatsApp</b><small>${esc(whats(c))}</small></span></a>`, k.phone && `<a href="tel:${esc(k.phone.replace(/[^\d+]/g, ''))}">${ic('phone')}<span><b>Telefone</b><small>${esc(k.phone)}</small></span></a>`,
@@ -242,6 +261,7 @@ export function renderProperty(c: SiteCtx, d: any, similar: any[], leadToken: st
   const kv = [d.area_total && [ic('area') + 'Área', `${Number(d.area_total).toLocaleString('pt-BR')} ${AREA[d.area_unit] ?? ''}`], d.bedrooms != null && [ic('bed') + 'Quartos', d.bedrooms], d.bathrooms != null && [ic('bath') + 'Banheiros', d.bathrooms], d.parking != null && [ic('car') + 'Vagas', d.parking], [ic('pin') + 'Tipo', subLabel(d.subtype)]].filter(Boolean) as [string, string][];
   const wa = waLink(whats(c), `Olá! Tenho interesse no imóvel "${d.title}" (${url})`);
   const videos = (d.videos ?? []) as any[];
+  const vfiles = (d.video_files ?? []) as { id: string; url: string; mime: string; caption: string | null }[];
   const extra = [d.rural && d.rural.water_sources.length && `Água: ${d.rural.water_sources.join(', ')}`, d.rural && d.rural.activities.length && `Atividades: ${d.rural.activities.join(', ')}`, d.coastal?.beach_distance_m != null && `A ${d.coastal.beach_distance_m} m da praia${d.coastal.sea_view ? ' · vista para o mar' : ''}`].filter(Boolean) as string[];
   const desc = (d.description || `${d.title} — ${pl}`).replace(/\s+/g, ' ').slice(0, 160);
   const ld = { '@context': 'https://schema.org', '@type': 'RealEstateListing', name: d.title, description: desc, url, ...(ph[0] ? { image: `${c.base}${photo(ph[0].id, 1200)}` } : {}) };
@@ -254,8 +274,8 @@ ${d.status !== 'disponivel' ? '<p class="warn">Este imóvel pode não estar mais
 ${d.description ? `<div class="box"><h2>Descrição</h2><p>${esc(d.description)}</p></div>` : ''}
 ${d.features.length ? `<div class="box"><h2>Características</h2><div class="tags">${d.features.map((x: string) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
 ${extra.length ? `<div class="box"><h2>Detalhes</h2><p>${esc(extra.join('\n'))}</p></div>` : ''}
-${videos.length ? `<div class="box"><h2>Vídeo${videos.length > 1 ? 's' : ''}</h2><div class="vds">${videos.map((v) => `<div class="vd"><div class="fr"><iframe src="${esc(embedUrl(v))}" title="${esc(v.title || d.title)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${v.title ? `<b>${esc(v.title)}</b>` : ''}</div>`).join('')}</div></div>` : ''}
-${pl ? `<div class="box"><h2>Localização</h2><p>${esc(pl)}</p><p style="margin-top:8px"><a class="lnk" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pl)}" rel="noopener">Ver região no mapa →</a></p></div>` : ''}
+${videos.length || vfiles.length ? `<div class="box"><h2>Vídeo${videos.length + vfiles.length > 1 ? 's' : ''}</h2><div class="vds">${vfiles.map((v) => `<div class="vd"><video controls preload="metadata" playsinline style="width:100%;border-radius:var(--r);background:#000;max-height:70vh" aria-label="${esc(v.caption || d.title)}"><source src="${esc(v.url)}" type="${esc(v.mime)}">Seu navegador não toca este vídeo.</video>${v.caption ? `<p class="small">${esc(v.caption)}</p>` : ''}</div>`).join('')}${videos.map((v) => `<div class="vd"><div class="fr"><iframe src="${esc(embedUrl(v))}" title="${esc(v.title || d.title)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${v.title ? `<b>${esc(v.title)}</b>` : ''}</div>`).join('')}</div></div>` : ''}
+${pl || d.map ? `<div class="box"><h2>Localização</h2>${pl ? `<p>${esc(pl)}</p><p style="margin-top:8px"><a class="lnk" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pl)}" rel="noopener">Ver região no mapa →</a></p>` : ''}${d.map ? mapEmbed([{ ...d.map }]) + (d.map.exact ? '' : '<p class="mapn">Localização aproximada: o endereço exato não é divulgado.</p>') : ''}</div>` : ''}
 </div><aside class="ask box" style="margin-top:0">${pr ? `<div class="pl">${pr}</div>` : '<div class="pr c" style="margin-bottom:12px">Valor sob consulta</div>'}
 ${wa ? `<a class="btn wa" href="${esc(wa)}" rel="noopener" style="margin-bottom:16px">${ic('wa')} Conversar no WhatsApp</a>` : ''}<h2>Tenho interesse</h2>
 <form class="fm" id="lf" novalidate data-code="${esc(d.code)}" data-token="${esc(leadToken)}"><label>Seu nome<input name="name" required maxlength="120" autocomplete="name"></label><label>Telefone com DDD<input name="phone" inputmode="tel" autocomplete="tel"></label><label>E-mail<input name="email" type="email" autocomplete="email"></label>

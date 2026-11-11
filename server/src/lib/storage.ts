@@ -7,6 +7,8 @@ import { q, q1 } from '../db/pool.js';
 export interface Storage {
   put(key: string, data: Buffer, mime: string): Promise<void>;
   get(key: string): Promise<Buffer>;
+  /** Bytes [start, end] (inclusivo) — usado para vídeo (Range). */
+  range(key: string, start: number, end: number): Promise<Buffer>;
   del(key: string): Promise<void>;
 }
 
@@ -19,6 +21,10 @@ class LocalStorage implements Storage {
   }
   async put(key: string, data: Buffer) { const f = this.p(key); await fs.mkdir(path.dirname(f), { recursive: true }); await fs.writeFile(f, data, { flag: 'wx' }); }
   async get(key: string) { return fs.readFile(this.p(key)); }
+  async range(key: string, start: number, end: number) {
+    const h = await fs.open(this.p(key), 'r');
+    try { const b = Buffer.alloc(end - start + 1); const { bytesRead } = await h.read(b, 0, b.length, start); return b.subarray(0, bytesRead); } finally { await h.close(); }
+  }
   async del(key: string) { await fs.rm(this.p(key), { force: true }); }
 }
 
@@ -30,6 +36,10 @@ class S3Storage implements Storage {
   async put(key: string, data: Buffer, mime: string) { await this.c.send(new PutObjectCommand({ Bucket: config.s3.bucket, Key: key, Body: data, ContentType: mime })); }
   async get(key: string) {
     const r = await this.c.send(new GetObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+    return Buffer.from(await r.Body!.transformToByteArray());
+  }
+  async range(key: string, start: number, end: number) {
+    const r = await this.c.send(new GetObjectCommand({ Bucket: config.s3.bucket, Key: key, Range: `bytes=${start}-${end}` }));
     return Buffer.from(await r.Body!.transformToByteArray());
   }
   async del(key: string) { await this.c.send(new DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key })); }
@@ -47,6 +57,12 @@ class DbStorage implements Storage {
     if (!r) throw Object.assign(new Error('arquivo não encontrado'), { code: 'ENOENT' });
     return r.data;
   }
+  async range(key: string, start: number, end: number) {
+    this.org(key);
+    const r = await q1<{ d: Buffer }>('SELECT substring(data from $2::int for $3::int) AS d FROM blobs WHERE key=$1', [key, start + 1, end - start + 1]);
+    if (!r) throw Object.assign(new Error('arquivo não encontrado'), { code: 'ENOENT' });
+    return r.d;
+  }
   async del(key: string) { this.org(key); await q('DELETE FROM blobs WHERE key=$1', [key]); }
 }
 
@@ -59,5 +75,13 @@ export function sniffMime(b: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' 
   if (b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
   if (b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
   if (b.length > 5 && b.toString('ascii', 0, 5) === '%PDF-') return 'application/pdf';
+  return null;
+}
+
+const MP4_BRANDS = new Set(['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'M4V ', 'dash']);
+/** Vídeo pelo conteúdo: MP4 (marcas comuns de H.264) ou WebM. O servidor NÃO converte: o navegador toca se o codec for compatível. */
+export function sniffVideo(b: Buffer): 'video/mp4' | 'video/webm' | null {
+  if (b.length > 12 && b.toString('ascii', 4, 8) === 'ftyp' && MP4_BRANDS.has(b.toString('ascii', 8, 12))) return 'video/mp4';
+  if (b.length > 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'video/webm';
   return null;
 }

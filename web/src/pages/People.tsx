@@ -175,13 +175,15 @@ export function PersonDetail() {
   const [note, setNote] = useState('');
   const { ask, node } = useConfirm();
   const addNote = async () => { if (!note.trim()) return; await post(`/api/people/${id}/interactions`, { body: note }); setNote(''); st.reload(); };
+  const [anon, setAnon] = useState(false); const [anonTxt, setAnonTxt] = useState(''); const [anonErr, setAnonErr] = useState('');
+  const doAnon = async () => { setAnonErr(''); try { const r = await post(`/api/people/${id}/anonymize`, { confirm: anonTxt }); toast(`Anonimizado (${r.arquivos_apagados} arquivo(s) e ${r.contatos_do_site_apagados} contato(s) do site apagados)`); setAnon(false); st.reload(); } catch (e) { setAnonErr(e instanceof ApiError ? e.message : 'Erro ao anonimizar'); } };
   const archive = async () => { if (await ask('Arquivar esta pessoa? Ela deixa de aparecer nas listas, mas o histórico é mantido.', 'Arquivar')) { await del(`/api/people/${id}`); toast('Pessoa arquivada'); nav('/pessoas'); } };
   return (
     <Async state={st}>
       {(p) => (
         <>
           <Link to="/pessoas" className="small">← Pessoas</Link>
-          <div className="row"><h1>{p.display_name || p.name}</h1><StatusChip s={p.relationship_status} />{can('people.write') && <><button className="btn small right" onClick={() => setEditing(true)}>Editar</button><button className="btn small danger" onClick={archive}>Arquivar</button></>}</div>
+          <div className="row"><h1>{p.display_name || p.name}</h1><StatusChip s={p.relationship_status} />{can('people.write') && <><button className="btn small right" onClick={() => setEditing(true)}>Editar</button><button className="btn small danger" onClick={archive}>Arquivar</button></>}{can('data.export') && <a className="btn small" href={`/api/people/${id}/export`} download title="Baixa uma cópia (JSON) de todos os dados desta pessoa">Exportar dados (LGPD)</a>}{can('org.manage') && p.name !== 'Titular anonimizado' && <button className="btn small danger" onClick={() => { setAnon(true); setAnonTxt(''); setAnonErr(''); }}>Anonimizar…</button>}</div>{anon && <Modal title="Anonimizar pessoa" onClose={() => setAnon(false)}><div className="stack"><p>Remove nome, documento, telefones, e-mails, observações, interações e documentos desta pessoa e os contatos do site ligados a ela. <b>Não pode ser desfeito.</b> Negócios e contratos ficam, sem identificar a pessoa. Textos livres de tarefas e negócios não são reescritos.</p><Field label="Digite ANONIMIZAR para confirmar"><input value={anonTxt} onChange={(e) => setAnonTxt(e.target.value)} autoComplete="off" /></Field>{anonErr && <div className="alert err" role="alert">{anonErr}</div>}<button className="btn danger" disabled={anonTxt.trim().toUpperCase() !== 'ANONIMIZAR'} onClick={doAnon}>Anonimizar definitivamente</button></div></Modal>}
           <div className="chips" style={{ marginBottom: '.6rem' }}>{p.roles.map((r: string) => <span key={r} className="chip">{L(r)}</span>)}</div>
           <div className="grid g2">
             <section className="card stack">

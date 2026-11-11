@@ -23,3 +23,8 @@ Vitrine por categorias, marca (logo/cores/slogan), QR Code, cartão de visita 90
 7. ~~Avaliação pedida pelo proprietário~~ (feito: formulário no site).
 8. ~~Cartão digital com link para salvar contato (vCard) no celular~~ (feito: botão "Salvar contato" na vitrine, `/v/<slug>/contato.vcf`).
 9. Modelo de mensagem pronta de WhatsApp por tipo de imóvel.
+
+
+## Atualização (fases 11–14)
+Feitos: parcelas/pagamentos/reajuste/renovação de contratos; mapa na vitrine e na página do imóvel; exportação/anonimização/retenção (LGPD, com docs/LGPD.md); vídeo enviado como arquivo.
+Continuam pendentes: boleto/PIX/cobrança automática e conciliação bancária; juros e multa por atraso; índices oficiais (IGP-M/IPCA) automáticos; conversão de vídeo; 2FA; deploy no Cloudflare Pages e Firebase (dependem de contas/credenciais do dono); teste em aparelhos reais (iPhone/Android), leitor de tela e rede lenta.

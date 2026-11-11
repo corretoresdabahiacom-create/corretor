@@ -2,10 +2,10 @@ import { z } from 'zod';
 import { HEX } from './brand.js';
 
 /** Configuração do site da vitrine, editável pela imobiliária. Tudo opcional: o que faltar usa o padrão. */
-export const SECTION_IDS = ['destaques', 'imoveis', 'servicos', 'sobre', 'videos', 'galeria', 'avaliacao', 'contato'] as const;
+export const SECTION_IDS = ['destaques', 'imoveis', 'servicos', 'sobre', 'videos', 'galeria', 'avaliacao', 'mapa', 'contato'] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 export const SECTION_LABEL: Record<SectionId, string> = {
-  destaques: 'Destaques', imoveis: 'Imóveis', servicos: 'Serviços', sobre: 'Sobre nós', videos: 'Vídeos', galeria: 'Galeria de fotos', avaliacao: 'Avaliação de imóveis', contato: 'Contato',
+  destaques: 'Destaques', imoveis: 'Imóveis', servicos: 'Serviços', sobre: 'Sobre nós', videos: 'Vídeos', galeria: 'Galeria de fotos', avaliacao: 'Avaliação de imóveis', mapa: 'Mapa dos imóveis', contato: 'Contato',
 };
 
 export type Video = { provider: 'youtube' | 'vimeo'; id: string; title: string };

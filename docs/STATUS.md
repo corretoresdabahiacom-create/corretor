@@ -68,3 +68,28 @@ Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com
 - Página pública do imóvel: campos opcionais de data (hoje até 90 dias) e período; validação no servidor; aparece como "Pediu visita" em Contatos novos. Visita não é agendamento automático: o corretor confirma por contato.
 - Vitrine: `/v/<slug>/contato.vcf` (vCard 3.0, escapando `\ ; ,`) e botão "Salvar contato" quando há telefone, WhatsApp ou e-mail.
 - Testes: `phase10.test.ts` (5). Suíte: 61 passando. Não testado: importar o .vcf em iPhone/Android reais.
+
+## Fase 11 — financeiro dos contratos (parcelas, reajuste, renovação)
+- Migração 012: `contract_payments`, `contract_adjustments`, `contracts.renewed_from` (RLS ligado).
+- Parcelas geradas pelo prazo (mensal no dia de vencimento, ajustado ao fim do mês; anual por aniversário; safra uma parcela no fim), sem duplicar; cobranças avulsas; baixa total/parcial com data (nunca futura) e forma; desfazer; status pago/parcial/atrasado/pendente calculado na data de Brasília.
+- Reajuste: percentual informado por quem opera (o app **não** busca índices oficiais); atualiza o contrato e só as parcelas ainda não pagas a partir da vigência; histórico.
+- Renovação: encerra o atual como "Renovado", cria o novo já ativo ligado ao anterior (início = fim do anterior), gera as parcelas e mantém o imóvel ocupado.
+- Alerta "pagamento em atraso" em Contratos e resumo de recebimentos do mês. **Não** emite boleto, não cobra, não concilia banco, não calcula juros/multa.
+- Testes: `phase11.test.ts` (calendário, parcelas, permissões, isolamento, reajuste, renovação).
+
+## Fase 12 — mapa
+- Leaflet servido pelo próprio app (`/vendor/leaflet.*`), tiles do OpenStreetMap (CSP liberada só para `tile.openstreetmap.org`).
+- Página do imóvel e seção "Mapa dos imóveis" da vitrine (editável/ocultável como as demais). Com "mostrar localização exata" o ponto é exato; sem ele, só um círculo de região (coordenadas arredondadas a ~1 km — a coordenada real não vai para o HTML).
+- "Localizar pelo endereço" no cadastro do imóvel (Nominatim/OpenStreetMap, 1 consulta/s, com cache). Testes com o serviço simulado; **a consulta real ao Nominatim e o carregamento real dos tiles não foram testados aqui** (o ambiente não acessa esses domínios). Uso dos tiles públicos do OSM é para tráfego baixo; para volume alto, trocar de provedor.
+- Testes: `phase12.test.ts` (7). Conferido em navegador: pino exato e círculos aparecem, sem erros de script.
+
+## Fase 13 — LGPD (ferramentas)
+- Exportar dados do titular (JSON, admin/gestor), anonimizar (admin, irreversível, bloqueia com contrato ativo), apagar contatos antigos do site (mín. 30 dias). Tudo auditado sem dados pessoais. Documento: `docs/LGPD.md` (limites, procedimentos sugeridos e **necessidade de revisão jurídica**). Não declara conformidade.
+- Testes: `phase13.test.ts` (6).
+
+## Fase 14 — vídeo enviado como arquivo
+- MP4 (H.264) ou WebM até 30 MB (`MAX_VIDEO_MB`), 3 por imóvel e 150 MB por imobiliária (`MAX_ORG_VIDEO_MB`); tipo conferido pelo conteúdo; entrega com Range (206/416) para tocar e avançar; público só se marcado e com o imóvel publicado; exibido na página do imóvel.
+- **Não há conversão/compressão**: se o codec não for compatível com o navegador, o vídeo não toca. No Postgres/Neon free o espaço é pequeno (~0,5 GB no total): vídeos longos devem ir por link YouTube/Vimeo.
+- Testes: `phase14.test.ts` (7) + leitura de trecho no driver de banco. Não testado: reprodução em aparelhos reais.
+
+Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.

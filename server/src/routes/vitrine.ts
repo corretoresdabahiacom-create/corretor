@@ -11,6 +11,8 @@ import { plainQrSvg, renderCard } from '../lib/card.js';
 import { isValidPhone, normalizePhone } from '../lib/validators.js';
 import { CONSENT_TEXT, bump, formToken, loadPublic } from './portal.js';
 import { DEFAULT_SITE, parseFilters, hasFilters, siteInput, siteOf, videosInput } from '../lib/site.js';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { renderHome, renderProperty, vcard, type SiteCtx } from '../lib/siteRender.js';
 import { DEFAULT_APP_THEME, appThemeInput, appThemeOf, effectiveTheme } from '../lib/appTheme.js';
 
@@ -30,7 +32,7 @@ async function loadVitrine(slug: string) {
   const org = await q1<any>(`SELECT id,name,slug,plan,brand,site,public_name,public_whatsapp,public_badge FROM organizations WHERE slug=$1`, [slug]);
   if (!org) return null;
   const rows = await q<any>(
-    `SELECT p.id,p.public_code,p.title,p.description,p.kind,p.subtype,p.purposes,p.location_tags,p.city,p.state,p.neighborhood,p.price_sale,p.price_rent,p.price_lease,p.show_price,p.area_total,p.area_unit,p.bedrooms,p.bathrooms,p.parking,p.featured,p.features,jsonb_array_length(p.videos) AS video_count,
+    `SELECT p.id,p.public_code,p.latitude,p.longitude,p.show_exact_location,p.title,p.description,p.kind,p.subtype,p.purposes,p.location_tags,p.city,p.state,p.neighborhood,p.price_sale,p.price_rent,p.price_lease,p.show_price,p.area_total,p.area_unit,p.bedrooms,p.bathrooms,p.parking,p.featured,p.features,jsonb_array_length(p.videos) AS video_count,
        (SELECT f.id FROM files f WHERE f.property_id=p.id AND f.category='foto' AND f.visibility='publico' ORDER BY f.is_cover DESC, f.position LIMIT 1) AS cover_id,
        (SELECT count(*)::int FROM files f WHERE f.property_id=p.id AND f.category='foto' AND f.visibility='publico') AS photo_count
      FROM properties p WHERE p.org_id=$1 AND p.published_at IS NOT NULL AND p.status='disponivel' ORDER BY p.featured DESC, p.published_at DESC LIMIT 200`, [org.id]);
@@ -46,6 +48,17 @@ export async function vitrineRoutes(app: FastifyInstance) {
   const ctxOf = async (v: NonNullable<Awaited<ReturnType<typeof loadVitrine>>>, preview: boolean): Promise<SiteCtx> => ({
     org: v.org, brand: v.brand, site: v.site, base: base(), preview,
     hasLogo: !!(await q1(`SELECT 1 FROM org_assets WHERE org_id=$1 AND kind='logo'`, [v.org.id])),
+  });
+
+  // Leaflet servido pelo próprio app (sem CDN): mapa das páginas públicas.
+  const req2 = createRequire(import.meta.url);
+  const vend: Record<string, [string, string]> = { 'leaflet.js': ['leaflet/dist/leaflet.js', 'application/javascript; charset=utf-8'], 'leaflet.css': ['leaflet/dist/leaflet.css', 'text/css; charset=utf-8'] };
+  const vcache = new Map<string, Buffer>();
+  app.get('/vendor/:file', async (req, reply) => {
+    const f = vend[String((req.params as any).file)];
+    if (!f) return reply.code(404).type('text/plain').send('Não encontrado.');
+    if (!vcache.has(f[0])) vcache.set(f[0], readFileSync(req2.resolve(f[0])));
+    return reply.header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type(f[1]).send(vcache.get(f[0]));
   });
 
   app.get('/v/:slug', rl(120, '1 minute'), async (req, reply) => {
