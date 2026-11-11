@@ -17,6 +17,7 @@ services:
       - { key: TRUST_PROXY, value: "true" }
       - { key: DEV_EXPOSE_TOKENS, value: "false" }
       - { key: WEB_DIST, value: ../web/dist }
+      - { key: STORAGE_DRIVER, value: db }   # fotos/documentos no Postgres (o disco do Render free é apagado a cada deploy)
       - { key: FORM_SECRET, generateValue: true }
       - { key: DATABASE_URL, sync: false }   # connection string do Neon (production), com ?sslmode=require
       - { key: PUBLIC_ORIGIN, sync: false }  # https://imobflow.onrender.com (ou seu domínio)

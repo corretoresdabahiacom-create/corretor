@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { config } from './config.js';
+import { q, q1 } from '../db/pool.js';
 
 export interface Storage {
   put(key: string, data: Buffer, mime: string): Promise<void>;
@@ -34,8 +35,23 @@ class S3Storage implements Storage {
   async del(key: string) { await this.c.send(new DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key })); }
 }
 
+/** Guarda os arquivos numa tabela do Postgres (bytea). Limite prático: a cota do banco (Neon free ≈ 0,5 GB). */
+class DbStorage implements Storage {
+  private org(key: string) { if (!SAFE_KEY.test(key)) throw new Error('chave inválida'); return key.split('/')[0]; }
+  async put(key: string, data: Buffer, mime: string) {
+    await q('INSERT INTO blobs(key,org_id,mime,size,data) VALUES ($1,$2,$3,$4,$5)', [key, this.org(key), mime, data.length, data]);
+  }
+  async get(key: string) {
+    this.org(key);
+    const r = await q1<{ data: Buffer }>('SELECT data FROM blobs WHERE key=$1', [key]);
+    if (!r) throw Object.assign(new Error('arquivo não encontrado'), { code: 'ENOENT' });
+    return r.data;
+  }
+  async del(key: string) { this.org(key); await q('DELETE FROM blobs WHERE key=$1', [key]); }
+}
+
 let inst: Storage | null = null;
-export const storage = (): Storage => (inst ??= config.storageDriver === 's3' ? new S3Storage() : new LocalStorage());
+export const storage = (): Storage => (inst ??= config.storageDriver === 's3' ? new S3Storage() : config.storageDriver === 'db' ? new DbStorage() : new LocalStorage());
 
 /** Detecta o tipo real pelo conteúdo (não confia no nome nem no Content-Type enviado). */
 export function sniffMime(b: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null {

@@ -23,7 +23,7 @@ O `render.yaml` na raiz configura tudo (Node 22, build do web + API no mesmo ser
 3. Após o primeiro deploy, abra a URL do serviço e crie sua conta em `/cadastrar`.
 Limitações do plano gratuito:
 - O serviço hiberna após ~15 min sem acesso; o primeiro acesso seguinte leva cerca de 1 minuto.
-- O disco é efêmero: com `STORAGE_DRIVER=local`, fotos e documentos enviados somem a cada deploy/reinício. Para uso real, configure `STORAGE_DRIVER=s3` (Cloudflare R2 exige cartão, mas tem cota gratuita).
+- O disco é efêmero, por isso o `render.yaml` já define `STORAGE_DRIVER=db`: fotos e documentos ficam numa tabela do Postgres (`blobs`, migração 011), sem cartão e sem perder nada em deploy/reinício. Limite prático: a cota do banco (Neon free ≈ 0,5 GB; fotos da vitrine são reprocessadas e ficam pequenas, PDFs de até 10 MB pesam mais). Para volume maior use `STORAGE_DRIVER=s3` (Cloudflare R2 exige cartão). O Neon Object Storage não está disponível na região São Paulo deste projeto.
 - Não há região em São Paulo; `virginia` é a mais próxima do Neon.
 
 ## Primeiro deploy
@@ -41,3 +41,8 @@ Assinatura por URL (somente leitura): Agenda → Assinar → gerar link → Goog
 - Depois de um novo `npm run build`, **reinicie a API** quando ela servir o `web/dist` (os arquivos são registrados na inicialização).
 - No Cloudflare Pages, o arquivo `web/public/_headers` já define `sw.js`/`index.html` sem cache e `assets/` imutáveis.
 - Usuários veem "Nova versão disponível — Atualizar agora"; o app só recarrega quando a pessoa toca.
+
+## Deploy automático e verificação
+- A cada push em `claude/keen-edison-2dosax` (ou `main`), o Render publica sozinho e o workflow `deploy-check.yml` espera a versão nova: consulta `/api/health` até o campo `commit` ser igual ao commit enviado (até 20 min, cobrindo o despertar do plano gratuito) e testa `/`, `/manifest.webmanifest` e `/robots.txt`. Falhou = o job fica vermelho no GitHub.
+- A URL verificada vem da variável de repositório `APP_URL` (padrão: `https://imobflow-d0r2.onrender.com`).
+- `deploy-web.yml` (Cloudflare Pages) só roda se existir a variável `CF_PAGES_PROJECT`; sem ela o Render serve o app inteiro e o job é ignorado em vez de falhar.

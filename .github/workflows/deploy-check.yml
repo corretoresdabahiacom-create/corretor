@@ -1,0 +1,26 @@
+name: Deploy (Render) — verificação
+# O Render publica sozinho a cada push (render.yaml, autoDeploy). Este job confere que a versão certa subiu.
+on:
+  push: { branches: [claude/keen-edison-2dosax, main] }
+  workflow_dispatch:
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Esperar o deploy e conferir /api/health
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://imobflow-d0r2.onrender.com' }}
+          SHA: ${{ github.sha }}
+        run: |
+          want="${SHA:0:7}"
+          for i in $(seq 1 40); do
+            out=$(curl -fsS -m 90 "$APP_URL/api/health" 2>/dev/null || true)
+            echo "tentativa $i: ${out:-sem resposta}"
+            if echo "$out" | grep -q "\"commit\":\"$want\""; then echo "Deploy confirmado: $want no ar."; exit 0; fi
+            sleep 30
+          done
+          echo "::error::A versão $want não apareceu em $APP_URL/api/health em 20 min (confira o painel do Render)."; exit 1
+      - name: Testar páginas públicas
+        env: { APP_URL: "${{ vars.APP_URL || 'https://imobflow-d0r2.onrender.com' }}" }
+        run: |
+          curl -fsS -m 60 -o /dev/null "$APP_URL/" && curl -fsS -m 60 -o /dev/null "$APP_URL/manifest.webmanifest" && curl -fsS -m 60 -o /dev/null "$APP_URL/robots.txt"

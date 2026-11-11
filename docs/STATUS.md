@@ -57,3 +57,9 @@ Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com
 - **Servidor:** `organizations.app_theme`; `GET/PATCH /api/app-theme` (org.manage, cores validadas, foto só da própria imobiliária); tema efetivo entregue em `/api/auth/me`; capa do imóvel na listagem; miniatura autenticada `/api/files/:id/thumb`.
 - **Testes:** 49/49 (tema aplicado à equipe, isolamento entre imobiliárias, permissões, "igual ao site", miniaturas).
 - **Não testado:** contraste de todas as combinações de cores escolhidas livremente (o app escolhe a cor do texto dos botões automaticamente, mas cores muito parecidas de fundo e texto podem ficar ilegíveis).
+
+
+## Fase 9 — arquivos persistentes e deploy verificado
+- `STORAGE_DRIVER=db`: arquivos no Postgres (migração 011, RLS, exclusão em cascata). Testes: upload/download/isolamento/chave inválida/cascata (`phase9.test.ts`, 2 testes).
+- `/api/health` devolve o `commit` em produção; `deploy-check.yml` confirma que a versão enviada foi ao ar.
+- Suíte: 56 testes passando localmente (Postgres 16). Não testado: o serviço real no Render (o ambiente de desenvolvimento não alcança *.onrender.com) — a conferência fica a cargo do workflow.

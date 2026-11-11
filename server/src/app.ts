@@ -63,7 +63,7 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
     return reply.code(code).send({ error: err.message });
   });
 
-  app.get('/api/health', async () => ({ ok: true, app: config.appName }));
+  app.get('/api/health', async () => ({ ok: true, app: config.appName, commit: (process.env.RENDER_GIT_COMMIT ?? '').slice(0, 7) || undefined }));
 
   await app.register(authRoutes);
   await app.register(peopleRoutes);

@@ -13,7 +13,7 @@ export const config = {
   // Em produção deve ser enviado por e-mail (serviço ainda não integrado — ver docs).
   devExposeTokens: (process.env.DEV_EXPOSE_TOKENS ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true')) === 'true',
   // Armazenamento de arquivos: 'local' (dev) ou 's3' (qualquer serviço compatível, ex.: Cloudflare R2).
-  storageDriver: (process.env.STORAGE_DRIVER ?? 'local') as 'local' | 's3',
+  storageDriver: (process.env.STORAGE_DRIVER ?? 'local') as 'local' | 's3' | 'db',
   storageDir: process.env.STORAGE_DIR ?? './storage-dev',
   s3: {
     endpoint: process.env.S3_ENDPOINT, bucket: process.env.S3_BUCKET, region: process.env.S3_REGION ?? 'auto',

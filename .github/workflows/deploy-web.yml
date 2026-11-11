@@ -1,9 +1,11 @@
 name: Deploy web (Cloudflare Pages)
 on:
-  push: { branches: [main] }
+  push: { branches: [main, claude/keen-edison-2dosax] }
   workflow_dispatch:
 jobs:
   deploy:
+    # Só roda se o Cloudflare Pages estiver configurado (variável CF_PAGES_PROJECT); sem isso o Render serve tudo.
+    if: ${{ vars.CF_PAGES_PROJECT != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
