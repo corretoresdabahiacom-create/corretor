@@ -50,6 +50,7 @@ function Leads() {
           <div style={{ flex: 1 }}><b>{l.name}</b> <span className="small muted">{dateBR(l.created_at)}</span>
             <div className="small">{[l.phone && phoneBR(l.phone), l.email].filter(Boolean).join(' · ')}</div>
             {l.kind === 'avaliacao' ? <div className="small"><span className="chip warn">Pedido de avaliação</span> {l.details?.property_type} · {l.details?.address}</div> : <div className="small muted">Imóvel: <Link to={`/imoveis/${l.property_id}`}>{l.property_code} · {l.property_title}</Link></div>}
+            {l.details?.visit?.date && <div className="small"><span className="chip warn">Pediu visita</span> {dateBR(l.details.visit.date)}{l.details.visit.period ? ' · ' + ({ manha: 'manhã', tarde: 'tarde', noite: 'noite' } as any)[l.details.visit.period] : ''}</div>}
             {l.message && <div className="small">“{l.message}”</div>}</div>
           {can('people.write') && <div className="stack">
             <button className="btn small primary" onClick={async () => { try { const r = await post(`/api/leads/${l.id}/convert`); toast(r.existing ? 'Vinculado a cadastro existente' : 'Pessoa criada'); st.reload(); } catch (e) { toast(e instanceof ApiError ? e.message : 'Erro'); } }}>Virar cliente</button>

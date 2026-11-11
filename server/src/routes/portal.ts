@@ -131,8 +131,15 @@ export async function portalRoutes(app: FastifyInstance) {
       phone: z.string().trim().max(30).optional(), email: z.string().trim().toLowerCase().email('E-mail inválido.').max(200).optional(),
       message: z.string().trim().max(1000).optional(), consent: z.literal(true, { message: 'É preciso autorizar o contato.' }),
       website: z.string().max(200).default(''), ref: z.string().max(80).optional(), cf_token: z.string().max(2048).optional(),
+      // pedido de visita (opcional): data desejada e período; o corretor confirma por contato
+      visit_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data de visita inválida.').optional(), visit_period: z.enum(['manha', 'tarde', 'noite']).optional(),
     }).parse(req.body);
     if (b.website) return reply.code(201).send({ ok: true }); // honeypot: finge sucesso, não grava
+    if (b.visit_date) {
+      const d = new Date(b.visit_date + 'T12:00:00Z'); const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+      const days = (d.getTime() - today.getTime()) / 86400000;
+      if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== b.visit_date || days < -1 || days > 90) return reply.code(400).send({ error: 'Escolha uma data de visita nos próximos 90 dias.' });
+    }
     if (!tokenOk(b.code, b.token)) return reply.code(400).send({ error: 'Formulário expirado. Recarregue a página e tente de novo.' });
     if (!b.phone && !b.email) return reply.code(400).send({ error: 'Informe telefone ou e-mail para retornarmos.' });
     if (b.phone && !isValidPhone(b.phone)) return reply.code(400).send({ error: 'Telefone inválido. Use DDD + número.' });
@@ -145,8 +152,9 @@ export async function portalRoutes(app: FastifyInstance) {
     const phone = b.phone ? normalizePhone(b.phone) : null;
     const dup = await q1(`SELECT 1 FROM portal_leads WHERE property_id=$1 AND created_at > now() - interval '24 hours' AND ((phone IS NOT NULL AND phone=$2) OR (email IS NOT NULL AND email=$3))`, [p.id, phone, b.email ?? null]);
     if (!dup) {
-      await q(`INSERT INTO portal_leads(org_id,property_id,name,phone,email,message,consent_text,ref,ip_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [p.org_id, p.id, b.name, phone, b.email ?? null, b.message ?? null, CONSENT_TEXT, b.ref ?? null, crypto.createHash('sha256').update(req.ip + config.formSecret).digest('hex').slice(0, 24)]);
+      const details = b.visit_date ? { visit: { date: b.visit_date, period: b.visit_period ?? null } } : {};
+      await q(`INSERT INTO portal_leads(org_id,property_id,name,phone,email,message,consent_text,ref,ip_hash,details) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [p.org_id, p.id, b.name, phone, b.email ?? null, b.message ?? null, CONSENT_TEXT, b.ref ?? null, crypto.createHash('sha256').update(req.ip + config.formSecret).digest('hex').slice(0, 24), JSON.stringify(details)]);
       await bump(p.org_id, p.id, 'lead');
     }
     return reply.code(201).send({ ok: true });

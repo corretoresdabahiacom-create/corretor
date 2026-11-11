@@ -5,7 +5,7 @@
 - **Google:** integração com Google Drive (optou-se por S3/R2) e Google Calendar com OAuth (hoje: assinatura iCal somente leitura); página institucional do produto e guia de incorporação no Google Sites (a vitrine pode ser usada por link).
 - **Contratos:** renovação, registro manual de pagamentos e pendências, histórico de reajustes, garantidores, vistorias, calendário de disponibilidade de temporada.
 - **Litoral:** origem da distância da praia, preço por período, regras de temporada.
-- **Pessoas/negócios:** compartilhar um imóvel ou oportunidade com um colaborador específico; solicitação de visita (data/hora) no formulário público.
+- **Pessoas/negócios:** compartilhar um imóvel ou oportunidade com um colaborador específico; ~~solicitação de visita no formulário público~~ (feito: data e período opcionais na página do imóvel; o corretor vê em "Contatos novos").
 - **LGPD:** política de retenção/exclusão, exportação dos dados do titular, procedimento documentado de incidentes. (Revisão jurídica pendente.)
 - **Relatórios:** contratos próximos do vencimento como relatório próprio (hoje aparecem como alertas).
 - **Painel:** conferir tarefas atrasadas.
@@ -21,5 +21,5 @@ Vitrine por categorias, marca (logo/cores/slogan), QR Code, cartão de visita 90
 5. Comparador e favoritos para o visitante (sem login, guardados no aparelho).
 6. Agendamento de visita direto na página pública.
 7. ~~Avaliação pedida pelo proprietário~~ (feito: formulário no site).
-8. Cartão digital com link para salvar contato (vCard) no celular.
+8. ~~Cartão digital com link para salvar contato (vCard) no celular~~ (feito: botão "Salvar contato" na vitrine, `/v/<slug>/contato.vcf`).
 9. Modelo de mensagem pronta de WhatsApp por tipo de imóvel.

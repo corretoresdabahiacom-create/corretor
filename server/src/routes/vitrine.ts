@@ -11,7 +11,7 @@ import { plainQrSvg, renderCard } from '../lib/card.js';
 import { isValidPhone, normalizePhone } from '../lib/validators.js';
 import { CONSENT_TEXT, bump, formToken, loadPublic } from './portal.js';
 import { DEFAULT_SITE, parseFilters, hasFilters, siteInput, siteOf, videosInput } from '../lib/site.js';
-import { renderHome, renderProperty, type SiteCtx } from '../lib/siteRender.js';
+import { renderHome, renderProperty, vcard, type SiteCtx } from '../lib/siteRender.js';
 import { DEFAULT_APP_THEME, appThemeInput, appThemeOf, effectiveTheme } from '../lib/appTheme.js';
 
 const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: (process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow }) as false | { max: number; timeWindow: string } } });
@@ -59,6 +59,14 @@ export async function vitrineRoutes(app: FastifyInstance) {
       await q(`INSERT INTO vitrine_stats(org_id,day,source,n) VALUES ($1,CURRENT_DATE,$2,1) ON CONFLICT (org_id,day,source) DO UPDATE SET n=vitrine_stats.n+1`, [v.org.id, source]);
     const html = renderHome(await ctxOf(v, preview), v.rows, f, formToken(`v:${v.org.slug}`), CONSENT_TEXT);
     return reply.header('cache-control', preview ? 'no-store' : 'public, max-age=60').type('text/html; charset=utf-8').send(html);
+  });
+
+  app.get('/v/:slug/contato.vcf', rl(60, '1 minute'), async (req, reply) => {
+    const slug = String((req.params as any).slug);
+    const v = /^[a-z0-9-]{2,80}$/.test(slug) ? await loadVitrine(slug) : null;
+    const card = v ? vcard(await ctxOf(v, false)) : null;
+    if (!v || !card) return reply.code(404).type('text/plain').send('Contato não disponível.');
+    return reply.header('cache-control', 'public, max-age=300').header('content-disposition', `attachment; filename="${v.org.slug}.vcf"`).type('text/vcard; charset=utf-8').send(card);
   });
 
   app.get('/v/:slug/imovel/:code', rl(120, '1 minute'), async (req, reply) => {

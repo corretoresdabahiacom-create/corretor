@@ -63,3 +63,8 @@ Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com
 - `STORAGE_DRIVER=db`: arquivos no Postgres (migração 011, RLS, exclusão em cascata). Testes: upload/download/isolamento/chave inválida/cascata (`phase9.test.ts`, 2 testes).
 - `/api/health` devolve o `commit` em produção; `deploy-check.yml` confirma que a versão enviada foi ao ar.
 - Suíte: 56 testes passando localmente (Postgres 16). Não testado: o serviço real no Render (o ambiente de desenvolvimento não alcança *.onrender.com) — a conferência fica a cargo do workflow.
+
+## Fase 10 — visita e contato
+- Página pública do imóvel: campos opcionais de data (hoje até 90 dias) e período; validação no servidor; aparece como "Pediu visita" em Contatos novos. Visita não é agendamento automático: o corretor confirma por contato.
+- Vitrine: `/v/<slug>/contato.vcf` (vCard 3.0, escapando `\ ; ,`) e botão "Salvar contato" quando há telefone, WhatsApp ou e-mail.
+- Testes: `phase10.test.ts` (5). Suíte: 61 passando. Não testado: importar o .vcf em iPhone/Android reais.

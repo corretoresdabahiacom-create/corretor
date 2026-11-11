@@ -163,7 +163,7 @@ function send(f,url,body,ok){var m=f.querySelector('[role=status]');var v=Object
  m.textContent='Enviando…';
  fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body(v))}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Erro');m.textContent=ok;f.reset();})}).catch(function(e){m.textContent=e.message||'Não foi possível enviar. Tente de novo.'});}
 var af=document.getElementById('af');if(af)af.addEventListener('submit',function(e){e.preventDefault();send(af,'/api/public/vitrine/'+sl+'/avaliacao',function(v){return{token:af.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,property_type:v.property_type,address:v.address,message:v.message||undefined,website:v.website||'',consent:true}},'Recebemos seu pedido! Entraremos em contato para combinar a avaliação.')});
-var lf=document.getElementById('lf');if(lf)lf.addEventListener('submit',function(e){e.preventDefault();send(lf,'/api/public/leads',function(v){return{code:lf.dataset.code,token:lf.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,message:v.message||undefined,website:v.website||'',consent:true,ref:'vitrine'}},'Recebemos seu contato! Em breve retornaremos.')});
+var lf=document.getElementById('lf');if(lf)lf.addEventListener('submit',function(e){e.preventDefault();send(lf,'/api/public/leads',function(v){return{code:lf.dataset.code,token:lf.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,message:v.message||undefined,visit_date:v.visit_date||undefined,visit_period:v.visit_period||undefined,website:v.website||'',consent:true,ref:'vitrine'}},'Recebemos seu contato! Em breve retornaremos.')});
 var fd=document.querySelector('.flt details');if(fd&&fd.dataset.active==='0'&&matchMedia('(max-width:760px)').matches)fd.open=false;
 document.querySelectorAll('.flt select').forEach(function(s){s.addEventListener('change',function(){if(matchMedia('(min-width:761px)').matches)s.form.submit()})});
 var lb=document.getElementById('lb');document.querySelectorAll('[data-lb]').forEach(function(a){a.addEventListener('click',function(e){if(!lb||!lb.showModal)return;e.preventDefault();lb.showModal();var t=document.getElementById(a.dataset.lb);if(t)t.scrollIntoView()})});
@@ -205,11 +205,29 @@ ${rows.length ? filterForm(c, rows, f, list.length) : ''}${list.length ? `<div c
   return `${head(c, { title: `${title} — Imóveis`, desc, url, img: og, ld })}${header(c, true)}<main>${hero}${cats ? `<div class="w"><nav class="cats" aria-label="Categorias">${cats}</nav></div>` : ''}${body}</main>${footer(c)}${SCRIPT(c.org.slug)}</body></html>`;
 }
 
+/** Cartão de contato (vCard 3.0) para salvar no celular; null se não houver telefone, WhatsApp nem e-mail. */
+export function vcard(c: SiteCtx): string | null {
+  const k = c.site.contact, esc1 = (t: string) => t.replace(/[\r\n]+/g, ' ').replace(/([\\;,])/g, '\\$1');
+  const tel = (t: string) => { const d = t.replace(/[^\d+]/g, ''); return d.length >= 8 ? d : ''; };
+  const phone = tel(k.phone), wa = tel(whats(c)), mail = k.email.trim();
+  if (!phone && !wa && !mail) return null;
+  const name = orgName(c);
+  const L = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${esc1(name)}`, `ORG:${esc1(name)}`];
+  if (phone) L.push(`TEL;TYPE=WORK,VOICE:${phone}`);
+  if (wa && wa !== phone) L.push(`TEL;TYPE=CELL:${wa}`);
+  if (mail) L.push(`EMAIL;TYPE=INTERNET:${esc1(mail)}`);
+  L.push(`URL:${c.base}/v/${c.org.slug}`);
+  if (k.address) L.push(`ADR;TYPE=WORK:;;${esc1(k.address)};;;;`);
+  L.push('END:VCARD');
+  return L.join('\r\n') + '\r\n';
+}
+
 function contactBlock(c: SiteCtx) {
   const k = c.site.contact, wa = waLink(whats(c), `Olá! Vim pelo site da ${orgName(c)}.`);
   const items = [wa && `<a href="${esc(wa)}" rel="noopener">${ic('wa')}<span><b>WhatsApp</b><small>${esc(whats(c))}</small></span></a>`, k.phone && `<a href="tel:${esc(k.phone.replace(/[^\d+]/g, ''))}">${ic('phone')}<span><b>Telefone</b><small>${esc(k.phone)}</small></span></a>`,
     k.email && `<a href="mailto:${esc(k.email)}">${ic('mail')}<span><b>E-mail</b><small>${esc(k.email)}</small></span></a>`, k.address && `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(k.address)}" rel="noopener">${ic('pin')}<span><b>Endereço</b><small>${esc(k.address)}</small></span></a>`,
-    k.hours && `<div>${ic('clock')}<span><b>Atendimento</b><small>${esc(k.hours)}</small></span></div>`].filter(Boolean);
+    k.hours && `<div>${ic('clock')}<span><b>Atendimento</b><small>${esc(k.hours)}</small></span></div>`,
+    vcard(c) && `<a href="/v/${esc(c.org.slug)}/contato.vcf" download>${ic('phone')}<span><b>Salvar contato</b><small>Adicionar à agenda do celular</small></span></a>`].filter(Boolean);
   return items.length ? `<section class="sc" id="contato"><div class="w"><div class="st"><h2>Fale com a gente</h2></div><div class="ct">${items.join('')}</div></div></section>` : '';
 }
 
@@ -241,6 +259,7 @@ ${pl ? `<div class="box"><h2>Localização</h2><p>${esc(pl)}</p><p style="margin
 </div><aside class="ask box" style="margin-top:0">${pr ? `<div class="pl">${pr}</div>` : '<div class="pr c" style="margin-bottom:12px">Valor sob consulta</div>'}
 ${wa ? `<a class="btn wa" href="${esc(wa)}" rel="noopener" style="margin-bottom:16px">${ic('wa')} Conversar no WhatsApp</a>` : ''}<h2>Tenho interesse</h2>
 <form class="fm" id="lf" novalidate data-code="${esc(d.code)}" data-token="${esc(leadToken)}"><label>Seu nome<input name="name" required maxlength="120" autocomplete="name"></label><label>Telefone com DDD<input name="phone" inputmode="tel" autocomplete="tel"></label><label>E-mail<input name="email" type="email" autocomplete="email"></label>
+<div class="two"><label>Quer visitar? Data (opcional)<input name="visit_date" type="date"></label><label>Período<select name="visit_period"><option value="">Qualquer</option><option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="noite">Noite</option></select></label></div>
 <label>Mensagem<textarea name="message" rows="3" maxlength="1000">Olá! Gostaria de mais informações sobre este imóvel.</textarea></label><div class="hp" aria-hidden="true"><label>Site<input name="website" tabindex="-1" autocomplete="off"></label></div>
 <label class="ck"><input type="checkbox" name="consent"> <span>${esc(consent)}</span></label><button class="btn" type="submit">Enviar</button><p role="status"></p></form></aside></div>
 ${similar.length ? `<section class="sc"><div class="st"><h2>Você também pode gostar</h2></div><div class="grid">${similar.map((p) => propCard(c, p)).join('')}</div></section>` : ''}
