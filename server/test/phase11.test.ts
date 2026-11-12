@@ -116,3 +116,25 @@ describe('Fase 11 — reajuste e renovação', () => {
     expect(((await admin.get(`/api/contracts/${r.body.id}/payments`)).body as any[]).length).toBe(r.body.parcelas);
   });
 });
+
+describe('Fase 15 — multa e juros por atraso', () => {
+  it('calcula encargos estimados, respeita configuração e permissões', async () => {
+    const { lateCharges } = await import('../src/routes/contractFinance.js');
+    expect(lateCharges(2000, 30, 2, 1)).toEqual({ multa: 40, juros: 20, total: 60 });
+    expect(lateCharges(1000, 15, 2, 1)).toEqual({ multa: 20, juros: 5, total: 25 });
+    expect(lateCharges(0, 10, 2, 1).total).toBe(0);
+    expect(lateCharges(500, 0, 2, 1).total).toBe(0);
+    const { admin } = await newOrg(app, 'Enc');
+    const { c } = await ativo(admin);
+    await admin.post(`/api/contracts/${c.id}/payments/generate`);
+    let list = (await admin.get(`/api/contracts/${c.id}/payments`)).body;
+    const late = list.find((p: any) => p.status === 'atrasado');
+    expect(late.encargos.multa).toBe(40);
+    expect(late.encargos.juros).toBeGreaterThan(0);
+    expect(list.find((p: any) => p.status === 'pendente').encargos).toBeNull();
+    expect((await admin.patch(`/api/contracts/${c.id}/late-fees`, { late_fee_pct: 0, late_interest_pct_month: 0 })).status).toBe(200);
+    list = (await admin.get(`/api/contracts/${c.id}/payments`)).body;
+    expect(list.find((p: any) => p.id === late.id).encargos.total).toBe(0);
+    expect((await admin.patch(`/api/contracts/${c.id}/late-fees`, { late_fee_pct: 50, late_interest_pct_month: 1 })).status).toBe(400);
+  });
+});

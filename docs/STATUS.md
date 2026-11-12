@@ -74,7 +74,7 @@ Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com
 - Parcelas geradas pelo prazo (mensal no dia de vencimento, ajustado ao fim do mês; anual por aniversário; safra uma parcela no fim), sem duplicar; cobranças avulsas; baixa total/parcial com data (nunca futura) e forma; desfazer; status pago/parcial/atrasado/pendente calculado na data de Brasília.
 - Reajuste: percentual informado por quem opera (o app **não** busca índices oficiais); atualiza o contrato e só as parcelas ainda não pagas a partir da vigência; histórico.
 - Renovação: encerra o atual como "Renovado", cria o novo já ativo ligado ao anterior (início = fim do anterior), gera as parcelas e mantém o imóvel ocupado.
-- Alerta "pagamento em atraso" em Contratos e resumo de recebimentos do mês. **Não** emite boleto, não cobra, não concilia banco, não calcula juros/multa.
+- Alerta "pagamento em atraso" em Contratos e resumo de recebimentos do mês. **Não** emite boleto, não cobra, não concilia banco, o valor da parcela não muda.
 - Testes: `phase11.test.ts` (calendário, parcelas, permissões, isolamento, reajuste, renovação).
 
 ## Fase 12 — mapa
@@ -93,3 +93,8 @@ Sync Google Agenda com escrita (OAuth); plano pago e cobrança; integração com
 - Testes: `phase14.test.ts` (7) + leitura de trecho no driver de banco. Não testado: reprodução em aparelhos reais.
 
 Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
+
+## Fase 15 — Multa e juros por atraso
+- Migração 014: `late_fee_pct` (padrão 2%) e `late_interest_pct_month` (padrão 1% a.m.) por contrato. `PATCH /api/contracts/:id/late-fees` (contracts.write; multa 0–20, juros 0–10).
+- A lista de parcelas traz `encargos` (multa única + juros simples pro rata dia sobre o saldo) para parcelas atrasadas; é estimativa para cobrança à parte, não altera o valor da parcela nem baixa automaticamente. Confirme com contrato/advogado os percentuais permitidos.
+- Teste: phase11 (cálculo, configuração, validação). Total: 88 testes.

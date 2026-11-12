@@ -41,6 +41,14 @@ export function schedule(c: { start_date: string; end_date: string; value_period
 const STATUS_SQL = `CASE WHEN p.paid_amount IS NOT NULL AND p.paid_amount >= p.amount THEN 'pago' WHEN p.paid_amount IS NOT NULL THEN 'parcial' WHEN p.due_date < $TODAY::date THEN 'atrasado' ELSE 'pendente' END`;
 const PAY_SELECT = (todayParam: string) => `SELECT p.id,p.contract_id,p.due_date,p.amount,p.paid_amount,p.paid_at,p.method,p.note,p.generated,${STATUS_SQL.replace('$TODAY', todayParam)} AS status`;
 
+// Encargos estimados: multa única sobre o saldo + juros simples pro rata dia. Arredonda em centavos.
+export function lateCharges(open: number, dias: number, feePct: number, interestMonthPct: number) {
+  if (!(open > 0) || !(dias > 0)) return { multa: 0, juros: 0, total: 0 };
+  const multa = Math.round(open * feePct) / 100;
+  const juros = Math.round(open * interestMonthPct * dias / 30) / 100;
+  return { multa, juros, total: Math.round((multa + juros) * 100) / 100 };
+}
+
 async function loadContract(orgId: string, id: string, c?: PoolClient) {
   const r = c ? (await c.query('SELECT * FROM contracts WHERE id=$1 AND org_id=$2', [id, orgId])).rows[0] : await q1<any>('SELECT * FROM contracts WHERE id=$1 AND org_id=$2', [id, orgId]);
   return r as any | undefined;
@@ -52,7 +60,17 @@ export async function contractFinanceRoutes(app: FastifyInstance) {
   app.get('/api/contracts/:id/payments', { preHandler: requirePerm('contracts.read') }, async (req, reply) => {
     const id = idOf(req);
     if (!(await loadContract(req.user!.orgId, id))) return reply.code(404).send({ error: 'Contrato não encontrado.' });
-    return q(`${PAY_SELECT('$3')} FROM contract_payments p WHERE p.contract_id=$1 AND p.org_id=$2 ORDER BY p.due_date, p.created_at`, [id, req.user!.orgId, todayStr()]);
+    const c = await loadContract(req.user!.orgId, id);
+    const rows = await q<any>(`${PAY_SELECT('$3')}, ($3::date - p.due_date) AS dias FROM contract_payments p WHERE p.contract_id=$1 AND p.org_id=$2 ORDER BY p.due_date, p.created_at`, [id, req.user!.orgId, todayStr()]);
+    return rows.map((p: any) => ({ ...p, encargos: (p.status === 'atrasado' || (p.status === 'parcial' && p.dias > 0)) ? lateCharges(Number(p.amount) - Number(p.paid_amount ?? 0), p.dias, Number(c.late_fee_pct), Number(c.late_interest_pct_month)) : null }));
+  });
+
+  app.patch('/api/contracts/:id/late-fees', { preHandler: requirePerm('contracts.write') }, async (req, reply) => {
+    const id = idOf(req);
+    const b = z.object({ late_fee_pct: z.number().min(0).max(20), late_interest_pct_month: z.number().min(0).max(10) }).parse(req.body);
+    if (!(await loadContract(req.user!.orgId, id))) return reply.code(404).send({ error: 'Contrato não encontrado.' });
+    await q('UPDATE contracts SET late_fee_pct=$3, late_interest_pct_month=$4, updated_at=now() WHERE id=$1 AND org_id=$2', [id, req.user!.orgId, b.late_fee_pct, b.late_interest_pct_month]);
+    return { ok: true, ...b };
   });
 
   // Gera as parcelas que faltam (idempotente). Só contratos ativos.

@@ -27,4 +27,4 @@ Vitrine por categorias, marca (logo/cores/slogan), QR Code, cartão de visita 90
 
 ## Atualização (fases 11–14)
 Feitos: parcelas/pagamentos/reajuste/renovação de contratos; mapa na vitrine e na página do imóvel; exportação/anonimização/retenção (LGPD, com docs/LGPD.md); vídeo enviado como arquivo.
-Continuam pendentes: boleto/PIX/cobrança automática e conciliação bancária; juros e multa por atraso; índices oficiais (IGP-M/IPCA) automáticos; conversão de vídeo; 2FA; deploy no Cloudflare Pages e Firebase (dependem de contas/credenciais do dono); teste em aparelhos reais (iPhone/Android), leitor de tela e rede lenta.
+Continuam pendentes: boleto/PIX/cobrança automática e conciliação bancária; índices oficiais (IGP-M/IPCA) automáticos; conversão de vídeo; 2FA; deploy no Cloudflare Pages e Firebase (dependem de contas/credenciais do dono); teste em aparelhos reais (iPhone/Android), leitor de tela e rede lenta.
