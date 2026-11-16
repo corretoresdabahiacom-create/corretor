@@ -8,8 +8,8 @@
     "start": "tsx src/index.ts",
     "migrate": "tsx src/db/migrate.ts",
     "reset-password": "tsx src/db/reset-password.ts",
-    "worker:dev": "wrangler dev",
-    "worker:deploy": "wrangler deploy",
+    "worker:dev": "wrangler dev -c ../wrangler.jsonc",
+    "worker:deploy": "wrangler deploy -c ../wrangler.jsonc",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

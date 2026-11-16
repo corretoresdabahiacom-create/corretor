@@ -1,18 +1,18 @@
 {
   // Worker único: serve a API, as páginas públicas (/p, /v) e o app web (arquivos estáticos). Plano gratuito, sem cartão.
   "name": "imobflow",
-  "main": "src/worker.ts",
+  "main": "server/src/worker.ts",
   "compatibility_date": "2025-11-01",
   "compatibility_flags": ["nodejs_compat", "enable_nodejs_http_server_modules"],
   "assets": {
-    "directory": "../web/dist",
+    "directory": "web/dist",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/p/*", "/v/*", "/robots.txt", "/sitemap.xml"]
   },
   "alias": {
-    "sharp": "./src/worker-stubs/missing.ts",
-    "argon2": "./src/worker-stubs/missing.ts",
-    "@aws-sdk/client-s3": "./src/worker-stubs/missing.ts"
+    "sharp": "./server/src/worker-stubs/missing.ts",
+    "argon2": "./server/src/worker-stubs/missing.ts",
+    "@aws-sdk/client-s3": "./server/src/worker-stubs/missing.ts"
   },
   "vars": {
     "NODE_ENV": "production",

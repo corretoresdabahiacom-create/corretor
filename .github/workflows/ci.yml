@@ -21,4 +21,3 @@ jobs:
       - run: npm run build
       - name: Worker compila (bundle Cloudflare)
         run: npx wrangler deploy --dry-run --outdir /tmp/worker-bundle
-        working-directory: server

@@ -8,6 +8,7 @@
     "dev:web": "npm -w web run dev",
     "migrate": "npm -w server run migrate",
     "test": "npm -w server test",
+    "cf:build": "npm run build && npm -w server run migrate",
     "build": "npm -w web run build",
     "start": "npm -w server run start"
   }

@@ -33,7 +33,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
           command: deploy --var PUBLIC_ORIGIN:${{ vars.PUBLIC_ORIGIN }} --var GIT_COMMIT:${{ github.sha }}
           secrets: |
             DATABASE_URL
