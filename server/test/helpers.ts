@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../src/http/mini.js';
 import { q } from '../src/db/pool.js';
 import { buildApp } from '../src/app.js';
 

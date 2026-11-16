@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import { q } from '../db/pool.js';
 import { config } from '../lib/config.js';
 

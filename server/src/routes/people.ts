@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import { z } from 'zod';
 import { q, q1, tx } from '../db/pool.js';
 import { audit, requirePerm } from '../lib/auth.js';

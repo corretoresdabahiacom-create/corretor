@@ -4,8 +4,8 @@
 Toda alteração pedida deve ser publicada, sem precisar perguntar de novo:
 1. Rodar `npm -w server run typecheck` e `npm test` (e `npm run build` se mexer no `web/`). Não publicar com teste falhando.
 2. Commit com mensagem descritiva e `git push -u origin claude/keen-edison-2dosax`.
-3. O Render (`render.yaml`, `autoDeploy: true`) faz o deploy sozinho a cada push nessa branch.
-4. Conferir `https://imobflow-d0r2.onrender.com/api/health` (deve responder `{"ok":true,...}`; o plano gratuito pode levar ~1 min para acordar) e informar o resultado.
+3. O workflow `deploy-cloudflare.yml` publica o Worker no Cloudflare a cada push (precisa dos segredos descritos em `docs/DEPLOY.md`; sem eles é ignorado). O Render não é mais usado.
+4. Conferir `<PUBLIC_ORIGIN>/api/health` (deve responder `{"ok":true,...}` com o `commit` enviado) e informar o resultado.
 
 Limites: não abrir PR nem mexer em outra branch sem pedido; nunca versionar segredos (`DATABASE_URL`, senhas, `.env`); não rodar SQL destrutivo no Neon `production` sem confirmação.
 

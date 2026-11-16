@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import crypto from 'node:crypto';
-import sharp from 'sharp';
+import { normalize, thumb as makeThumb, svgToPng } from '../lib/image.js';
 import { z } from 'zod';
 import { q, q1 } from '../db/pool.js';
 import { audit, requireAuth, requirePerm } from '../lib/auth.js';
@@ -51,13 +51,12 @@ export async function vitrineRoutes(app: FastifyInstance) {
   });
 
   // Leaflet servido pelo próprio app (sem CDN): mapa das páginas públicas.
-  const req2 = createRequire(import.meta.url);
   const vend: Record<string, [string, string]> = { 'leaflet.js': ['leaflet/dist/leaflet.js', 'application/javascript; charset=utf-8'], 'leaflet.css': ['leaflet/dist/leaflet.css', 'text/css; charset=utf-8'] };
   const vcache = new Map<string, Buffer>();
   app.get('/vendor/:file', async (req, reply) => {
     const f = vend[String((req.params as any).file)];
     if (!f) return reply.code(404).type('text/plain').send('Não encontrado.');
-    if (!vcache.has(f[0])) vcache.set(f[0], readFileSync(req2.resolve(f[0])));
+    if (!vcache.has(f[0])) vcache.set(f[0], readFileSync(createRequire(import.meta.url).resolve(f[0])));
     return reply.header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type(f[1]).send(vcache.get(f[0]));
   });
 
@@ -148,12 +147,12 @@ export async function vitrineRoutes(app: FastifyInstance) {
     const mime = sniffMime(raw);
     if (!mime || mime === 'application/pdf') return reply.code(415).send({ error: 'Use uma imagem JPG, PNG ou WebP.' });
     // Reprocessa (remove metadados como localização GPS) e limita a 2000 px.
-    const out = await sharp(raw).rotate().resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 84, mozjpeg: true }).toBuffer({ resolveWithObject: true }).catch(() => null);
+    const out = await normalize(raw, { maxSide: 2000, format: 'jpeg' });
     if (!out) return reply.code(415).send({ error: 'Não foi possível ler a imagem.' });
     const key = `${req.user!.orgId}/${crypto.randomUUID()}`;
-    await storage().put(key, out.data, 'image/jpeg');
-    const row = await q1<any>(`INSERT INTO site_images(org_id,mime,size_bytes,width,height,sha256,storage_key) VALUES ($1,'image/jpeg',$2,$3,$4,$5,$6) RETURNING id`,
-      [req.user!.orgId, out.data.length, out.info.width, out.info.height, crypto.createHash('sha256').update(out.data).digest('hex'), key]);
+    await storage().put(key, out.data, out.mime);
+    const row = await q1<any>(`INSERT INTO site_images(org_id,mime,size_bytes,width,height,sha256,storage_key) VALUES ($1,$7,$2,$3,$4,$5,$6) RETURNING id`,
+      [req.user!.orgId, out.data.length, out.width, out.height, crypto.createHash('sha256').update(out.data).digest('hex'), key, out.mime]);
     await audit(req, 'site.image.add', 'site_image', row.id);
     return reply.code(201).send({ id: row.id });
   });
@@ -172,7 +171,7 @@ export async function vitrineRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  const siteThumbs = new Map<string, Buffer>();
+  const siteThumbs = new Map<string, { data: Buffer; mime: string }>();
   app.get('/api/public/site/:slug/img/:id', rl(300, '1 minute'), async (req, reply) => {
     const { slug, id } = req.params as any;
     if (!z.string().uuid().safeParse(id).success) return reply.code(404).send({ error: 'Imagem não encontrada.' });
@@ -182,10 +181,10 @@ export async function vitrineRoutes(app: FastifyInstance) {
     const ck = `${row.id}:${width}`; let buf = siteThumbs.get(ck);
     if (!buf) {
       const data = await storage().get(row.storage_key).catch(() => null); if (!data) return reply.code(404).send({ error: 'Imagem não encontrada.' });
-      buf = await sharp(data).resize({ width, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+      buf = await makeThumb(data, width, 80, false);
       siteThumbs.set(ck, buf); if (siteThumbs.size > 300) siteThumbs.delete(siteThumbs.keys().next().value!);
     }
-    return reply.header('content-type', 'image/webp').header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(buf);
+    return reply.header('content-type', buf.mime).header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(buf.data);
   });
 
   // ---------- aparência do app (admin edita; todos aplicam via /api/auth/me) ----------
@@ -218,7 +217,7 @@ export async function vitrineRoutes(app: FastifyInstance) {
     const org = await q1<any>('SELECT id FROM organizations WHERE slug=$1', [String((req.params as any).slug)]);
     const buf = org ? await loadLogo(org.id) : null;
     if (!buf) return reply.code(404).send({ error: 'Sem logomarca.' });
-    return reply.header('content-type', 'image/png').header('cache-control', 'public, max-age=300').header('x-content-type-options', 'nosniff').send(buf);
+    return reply.header('content-type', sniffMime(buf) ?? 'image/png').header('cache-control', 'public, max-age=300').header('x-content-type-options', 'nosniff').send(buf);
   });
 
   app.get('/api/public/vitrine/:slug/qr.svg', rl(120, '1 minute'), async (req, reply) => {
@@ -257,13 +256,13 @@ export async function vitrineRoutes(app: FastifyInstance) {
     const mime = sniffMime(raw);
     if (!mime || mime === 'application/pdf') return reply.code(415).send({ error: 'Use uma imagem PNG, JPG ou WebP (SVG não é aceito).' });
     // Reprocessa: remove metadados/conteúdo embutido e limita o tamanho. Sempre grava PNG.
-    const png = await sharp(raw).rotate().resize({ width: 800, height: 400, fit: 'inside', withoutEnlargement: true }).png().toBuffer().catch(() => null);
+    const logoImg = await normalize(raw, { maxSide: 800, format: 'png' }); const png = logoImg?.data ?? null; const logoMime = logoImg?.mime ?? 'image/png';
     if (!png) return reply.code(415).send({ error: 'Não foi possível ler a imagem.' });
     const key = `${req.user!.orgId}/${crypto.randomUUID()}`;
-    await storage().put(key, png, 'image/png');
+    await storage().put(key, png, logoMime);
     const old = await q1<any>(`SELECT storage_key FROM org_assets WHERE org_id=$1 AND kind='logo'`, [req.user!.orgId]);
-    await q(`INSERT INTO org_assets(org_id,kind,mime,size_bytes,sha256,storage_key) VALUES ($1,'logo','image/png',$2,$3,$4) ON CONFLICT (org_id,kind) DO UPDATE SET mime=EXCLUDED.mime,size_bytes=EXCLUDED.size_bytes,sha256=EXCLUDED.sha256,storage_key=EXCLUDED.storage_key,updated_at=now()`,
-      [req.user!.orgId, png.length, crypto.createHash('sha256').update(png).digest('hex'), key]);
+    await q(`INSERT INTO org_assets(org_id,kind,mime,size_bytes,sha256,storage_key) VALUES ($1,'logo',$5,$2,$3,$4) ON CONFLICT (org_id,kind) DO UPDATE SET mime=EXCLUDED.mime,size_bytes=EXCLUDED.size_bytes,sha256=EXCLUDED.sha256,storage_key=EXCLUDED.storage_key,updated_at=now()`,
+      [req.user!.orgId, png.length, crypto.createHash('sha256').update(png).digest('hex'), key, logoMime]);
     if (old) await storage().del(old.storage_key).catch(() => {});
     await audit(req, 'brand.logo', 'organization', req.user!.orgId);
     return reply.code(201).send({ ok: true });
@@ -300,11 +299,12 @@ export async function vitrineRoutes(app: FastifyInstance) {
     const [org, usr, logo] = await Promise.all([q1<any>('SELECT slug,name,brand,public_name FROM organizations WHERE id=$1', [req.user!.orgId]), q1<any>('SELECT name,email,card_profile FROM users WHERE id=$1', [req.user!.id]), loadLogo(req.user!.orgId)]);
     const brand: Brand = brandOf(org.brand); const cp = usr.card_profile ?? {};
     const svg = renderCard(m[1] as 'front' | 'back', qy.layout ?? brand.card_layout, {
-      orgName: org.public_name || org.name, brand, logo: logo ? `data:image/png;base64,${logo.toString('base64')}` : null, name: usr.name, title: cp.title,
+      orgName: org.public_name || org.name, brand, logo: logo ? `data:${sniffMime(logo) ?? 'image/png'};base64,${logo.toString('base64')}` : null, name: usr.name, title: cp.title,
       phone: cp.phone ? phoneFmt(cp.phone) : undefined, whatsapp: cp.whatsapp ? phoneFmt(cp.whatsapp) : undefined, email: cp.card_email || usr.email, creci: cp.creci, url: vitrineUrl(org.slug, 'cartao'), services: brand.services, headline: qy.headline ?? cp.headline ?? 'imobiliaria',
     });
     reply.header('cache-control', 'private, no-store');
     if (m[2] === 'svg') return reply.type('image/svg+xml').send(svg);
-    return reply.type('image/png').send(await sharp(Buffer.from(svg)).png().toBuffer());
+    const pngOut = await svgToPng(svg);
+    return pngOut ? reply.type('image/png').send(pngOut) : reply.type('image/svg+xml').send(svg);
   });
 }

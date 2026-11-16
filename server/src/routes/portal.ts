@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { q, q1, tx } from '../db/pool.js';
@@ -9,8 +9,8 @@ import { sendMedia } from '../lib/media.js';
 import { isValidPhone, normalizePhone } from '../lib/validators.js';
 import { limitProblem, usage } from '../lib/plans.js';
 import { storage } from '../lib/storage.js';
-import sharp from 'sharp';
-const thumbs = new Map<string, Buffer>(); // cache simples em memória das miniaturas
+import { thumb as makeThumb } from '../lib/image.js';
+const thumbs = new Map<string, { data: Buffer; mime: string }>(); // cache simples em memória das miniaturas
 
 const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow } } });
 export const CONSENT_TEXT = 'Autorizo que a imobiliária use meus dados de contato para responder a este interesse no imóvel.';
@@ -132,8 +132,8 @@ export async function portalRoutes(app: FastifyInstance) {
     const data = await storage().get(f.storage_key);
     if (Number.isInteger(w) && w >= 64 && w <= 1600) {
       const ck = `${f.id}:${w}`; let out = thumbs.get(ck);
-      if (!out) { out = await sharp(data).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer().catch(() => undefined); if (out) { thumbs.set(ck, out); if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!); } }
-      if (out) return reply.header('content-type', 'image/webp').header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(out);
+      if (!out) { out = await makeThumb(data, w, 78); if (out) { thumbs.set(ck, out); if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!); } }
+      if (out) return reply.header('content-type', out.mime).header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(out.data);
     }
     return reply.header('content-type', f.mime).header('cache-control', 'public, max-age=3600').header('x-content-type-options', 'nosniff').send(data);
   });

@@ -98,3 +98,11 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 - Migração 014: `late_fee_pct` (padrão 2%) e `late_interest_pct_month` (padrão 1% a.m.) por contrato. `PATCH /api/contracts/:id/late-fees` (contracts.write; multa 0–20, juros 0–10).
 - A lista de parcelas traz `encargos` (multa única + juros simples pro rata dia sobre o saldo) para parcelas atrasadas; é estimativa para cobrança à parte, não altera o valor da parcela nem baixa automaticamente. Confirme com contrato/advogado os percentuais permitidos.
 - Teste: phase11 (cálculo, configuração, validação). Total: 88 testes.
+
+## Fase 16 — Deploy no Cloudflare Workers (sem Render)
+- Camada HTTP própria (`server/src/http/*`, compatível com a API do Fastify usada), baseada em Request/Response: roda em Node e no Worker. Fastify e plugins removidos. Os 88 testes passam sobre ela.
+- Worker único (`server/src/worker.ts`, `wrangler.jsonc`): API + páginas públicas + app web (Workers Assets). Pool de banco por requisição. Testado localmente com `wrangler dev`: cadastro, login, sessão, criação de pessoa, upload de imagem, vitrine e cabeçalhos de segurança.
+- Senhas: PBKDF2-SHA512 (WebCrypto); hashes argon2 antigos só funcionam em Node → `npm -w server run reset-password`.
+- Imagens: `sharp` em Node; no Worker valida/limpa EXIF e o navegador reduz as fotos antes do envio.
+- Render, Pages Functions e os workflows antigos removidos; `deploy-cloudflare.yml` migra o banco, publica e confere `/api/health`.
+- **Não testado**: deploy real na sua conta Cloudflare, limite de 10 ms de CPU no login (PBKDF2), Neon a partir dos servidores da Cloudflare.

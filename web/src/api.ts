@@ -43,8 +43,27 @@ export const qs = (o: Record<string, unknown>) => {
   return s ? `?${s}` : '';
 };
 
+/** Reduz e reencoda fotos no navegador: aplica a rotação, remove metadados (EXIF/GPS) e poupa banda e espaço no servidor. */
+async function prepareImage(file: File, url: string): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+  const logo = url.includes('/brand/logo');
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const max = logo ? 800 : 2000, k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); if (!ctx) return file;
+    if (!logo) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
+    ctx.drawImage(bmp, 0, 0, w, h); bmp.close?.();
+    const blob: Blob | null = await new Promise((r) => c.toBlob(r, logo ? 'image/png' : 'image/jpeg', 0.85));
+    if (!blob || (blob.size >= file.size && k === 1 && !logo)) return file; // não piora o que já está pequeno
+    return new File([blob], file.name.replace(/\.\w+$/, logo ? '.png' : '.jpg'), { type: blob.type });
+  } catch { return file; }
+}
+
 /** Envia um arquivo (multipart). O navegador define o Content-Type com o boundary. */
 export async function upload<T = any>(url: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+  if (fields.category !== 'documento') file = await prepareImage(file, url);
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.append(k, v);
   fd.append('file', file);

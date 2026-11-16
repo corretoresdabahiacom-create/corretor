@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from '../http/mini.js';
 import { storage } from './storage.js';
 
 const CHUNK = 2 * 1024 * 1024; // resposta parcial máxima: evita carregar o vídeo inteiro na memória do servidor gratuito

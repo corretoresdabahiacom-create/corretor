@@ -1,59 +1,49 @@
-# Deploy gratuito: GitHub + Cloudflare (+ Firebase opcional)
+# Deploy: Cloudflare Workers (gratuito, sem cartão) + Neon
 
 ## Visão geral
-Um único processo Node (a API) serve também o app web e as páginas públicas. O Cloudflare fica na frente.
-- **GitHub:** código e CI (`ci.yml`: testes com Postgres + build). `deploy-web.yml` publica `web/dist` no Cloudflare Pages (segredos `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` e variável `CF_PAGES_PROJECT`).
-- **Banco:** PostgreSQL gratuito externo (Neon ou Supabase free). `DATABASE_URL` só em segredos.
-- **API:** `npm ci && npm run build && npm start` com as variáveis de produção do `.env.example`. Hospedagem gratuita real: sua máquina/servidor + **Cloudflare Tunnel** (grátis). Firebase App Hosting exige plano Blaze (cartão).
-- **Cloudflare Pages (opcional):** `web/functions/*` repassam `/api`, `/p`, `/v` (vitrine, `.vcf`), `/vendor` (mapa), `/robots.txt`, `/sitemap.xml` para `API_ORIGIN` (testado localmente com `cd web && npx wrangler@3 pages dev dist --binding API_ORIGIN=http://localhost:3001`). Mais simples: apontar o domínio direto para o Tunnel (tudo na mesma origem).
-- **Arquivos:** `STORAGE_DRIVER=s3` com Cloudflare R2 (cota gratuita; exige cartão) ou disco local com backup.
-- **E-mail:** `EMAIL_DRIVER=resend` (plano gratuito, domínio verificado). Sem e-mail, convites seguem com link manual.
+Um único **Cloudflare Worker** serve a API (`/api`), as páginas públicas (`/p`, `/v`, `sitemap.xml`, `robots.txt`) e o app web (arquivos estáticos do `web/dist`, via Workers Assets). O banco é o Postgres do Neon; fotos e vídeos ficam no próprio Postgres (`STORAGE_DRIVER=db`), sem R2 e sem cartão.
+- Código do Worker: `server/src/worker.ts`; configuração: `server/wrangler.jsonc`.
+- O mesmo código roda em Node (`npm -w server run dev`, testes e hospedagem própria) e no Worker: a camada HTTP (`server/src/http/mini.ts`) usa só `Request`/`Response`. O Fastify foi removido porque o roteador dele usa `new Function`, proibido no Workers.
+- Local: `cp`-se um `server/.dev.vars` (DATABASE_URL, FORM_SECRET, PUBLIC_ORIGIN, COOKIE_SECURE=false, NODE_ENV=development), rode `npm run build` e `npm -w server run worker:dev` (http://localhost:8787).
+
+## Passo a passo (precisa da sua conta Cloudflare)
+1. Crie conta em cloudflare.com (não pede cartão). Em **My Profile → API Tokens → Create Token**, use o modelo **Edit Cloudflare Workers**. Anote também o **Account ID** (página inicial da conta, coluna direita).
+2. Em **Workers & Pages** abra **Overview**/**Settings** e registre seu subdomínio `workers.dev` (a URL ficará `https://imobflow.<subdominio>.workers.dev`). Domínio próprio pode ser ligado depois em Settings → Domains.
+3. No GitHub: **Settings → Secrets and variables → Actions**
+   - Segredos: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `DATABASE_URL` (Neon `production`, com `?sslmode=require`), `FORM_SECRET` (≥ 24 caracteres aleatórios).
+   - Variável: `PUBLIC_ORIGIN` = a URL https final do Worker (links da vitrine, vCard, mapa e cookies usam essa origem).
+4. Faça push em `main` ou `claude/keen-edison-2dosax` (ou rode o workflow manualmente): `deploy-cloudflare.yml` compila, aplica as migrações no Neon, publica com `wrangler deploy`, grava os segredos no Worker e confere `/api/health` até o campo `commit` bater com o commit enviado. Sem os segredos o job só avisa e é ignorado.
+5. Entre com sua conta. **Contas criadas antes desta mudança têm senha em argon2, que o Worker não lê**: redefina com `DATABASE_URL=… npm -w server run reset-password -- seu@email.com 'NovaSenha123'` (não é preciso fazer isso para contas novas).
+
+## Limites do plano gratuito (leia)
+- **CPU por requisição: 10 ms.** Login/cadastro usam PBKDF2-SHA512 com 100.000 iterações (máximo do Workers). Isso pode estourar os 10 ms; se aparecer erro 1102/“exceeded CPU” no login, as saídas são reduzir `PBKDF2_ITERATIONS` (menos seguro) ou assinar o plano pago do Workers (US$ 5/mês, exige cartão). Não consegui medir isso fora do Cloudflare; confirme no primeiro acesso.
+- 100.000 requisições/dia; corpo de requisição até 100 MB (os vídeos do app têm limite de 30 MB).
+- Sem `sharp` no Worker: o **app web reduz e limpa as fotos no navegador** antes de enviar (máx. 2000 px, sem EXIF/GPS) e o servidor valida o tipo e remove EXIF de JPEG. Miniaturas são a própria imagem (o navegador reduz). O cartão de visita em PNG vira SVG no Worker.
+- Limite de requisições (anti-abuso) é por instância do Worker, ou seja, aproximado; para proteção forte use Cloudflare Turnstile (`TURNSTILE_*`) e regras de rate limit do painel.
+- Armazenamento: `STORAGE_DRIVER=db` usa a cota do Neon (≈ 0,5 GB). `STORAGE_DRIVER=s3` não está disponível no Worker.
 
 ## Banco: Neon
 - Projeto `my-first-project` (`square-truth-49115411`, aws-sa-east-1, Postgres 18). Branch `production` (banco `neondb`) e branch `test` (banco `imobflow_test`).
-- As 9 migrações (`001`–`009`) já estão aplicadas em `production` e registradas em `schema_migrations`; `npm run migrate` (ou a subida da API) só aplica as novas.
-- `DATABASE_URL` (com `?sslmode=require`, obrigatório em produção para hosts remotos) fica só nos segredos do host da API; nunca no repositório.
+- As migrações até `009` já estão aplicadas em `production` e registradas em `schema_migrations`; `npm run migrate` (ou a subida da API) só aplica as novas.
+- `DATABASE_URL` (com `?sslmode=require`) fica só nos segredos do GitHub/Cloudflare; nunca no repositório. As migrações novas (`011`+) são aplicadas pelo workflow de deploy antes de publicar.
 - Segurança: a migração `010_rls.sql` liga RLS (sem políticas) em todas as tabelas e revoga acessos de `PUBLIC`; a API conecta como dono das tabelas. Se um dia usar a Data API do Neon ou outro role, será preciso criar políticas explícitas.
 - Testes: `TEST_DATABASE_URL=<url da branch test, banco imobflow_test> npm test`. O setup zera o schema `public`, por isso só aceita URLs com "test" no nome. O CI continua usando Postgres em container.
 
-## Hospedagem gratuita da API: Render
-O `render.yaml` na raiz configura tudo (Node 22, build do web + API no mesmo serviço, health check em `/api/health`).
-1. Em render.com, crie a conta com o GitHub (não pede cartão) e escolha **New → Blueprint**; selecione este repositório e a branch desejada.
-2. Quando pedir, preencha `DATABASE_URL` (connection string do Neon `production`, com `?sslmode=require`) e `PUBLIC_ORIGIN` (`https://imobflow.onrender.com`, ou a URL que o Render mostrar; pode ajustar depois em Environment).
-3. Após o primeiro deploy, abra a URL do serviço e crie sua conta em `/cadastrar`.
-Limitações do plano gratuito:
-- O serviço hiberna após ~15 min sem acesso; o primeiro acesso seguinte leva cerca de 1 minuto.
-- O disco é efêmero, por isso o `render.yaml` já define `STORAGE_DRIVER=db`: fotos e documentos ficam numa tabela do Postgres (`blobs`, migração 011), sem cartão e sem perder nada em deploy/reinício. Limite prático: a cota do banco (Neon free ≈ 0,5 GB; fotos da vitrine são reprocessadas e ficam pequenas, PDFs de até 10 MB pesam mais). Para volume maior use `STORAGE_DRIVER=s3` (Cloudflare R2 exige cartão). O Neon Object Storage não está disponível na região São Paulo deste projeto.
-- Não há região em São Paulo; `virginia` é a mais próxima do Neon.
-
-## Primeiro deploy
-1. Gere `FORM_SECRET` (≥24 caracteres); defina `PUBLIC_ORIGIN=https://…`, `COOKIE_SECURE=true`, `TRUST_PROXY=true`, `WEB_DIST=./web/dist`.
-2. A API migra o banco ao iniciar (ou `npm run migrate`).
-3. Crie sua conta em `/cadastrar`. Para tirar os limites do plano gratuito na sua própria organização: `UPDATE organizations SET plan='ilimitado' WHERE slug='…'`.
-4. Agende `scripts/backup.sh` (cron) e teste uma restauração.
-5. Envie `/sitemap.xml` ao Google Search Console.
+## Primeiro uso
+1. Crie sua conta em `/cadastrar`. Para tirar os limites do plano gratuito na sua organização: `UPDATE organizations SET plan='ilimitado' WHERE slug='…'`.
+2. Agende `scripts/backup.sh` (cron) e teste uma restauração.
+3. Envie `/sitemap.xml` ao Google Search Console.
 
 ## Google Agenda
 Assinatura por URL (somente leitura): Agenda → Assinar → gerar link → Google Agenda “Do URL”. Sincronização com escrita via OAuth **não** foi implementada (exige projeto no Google Cloud e verificação do app).
 
 
 ## Atualizações do app (PWA)
-- Depois de um novo `npm run build`, **reinicie a API** quando ela servir o `web/dist` (os arquivos são registrados na inicialização).
-- No Cloudflare Pages, o arquivo `web/public/_headers` já define `sw.js`/`index.html` sem cache e `assets/` imutáveis.
+- `web/public/_headers` define `sw.js`/`index.html` sem cache e `assets/` imutáveis (valem nos Workers Assets).
 - Usuários veem "Nova versão disponível — Atualizar agora"; o app só recarrega quando a pessoa toca.
 
-## Deploy automático e verificação
-- A cada push em `claude/keen-edison-2dosax` (ou `main`), o Render publica sozinho e o workflow `deploy-check.yml` espera a versão nova: consulta `/api/health` até o campo `commit` ser igual ao commit enviado (até 20 min, cobrindo o despertar do plano gratuito) e testa `/`, `/manifest.webmanifest` e `/robots.txt`. Falhou = o job fica vermelho no GitHub.
-- A URL verificada vem da variável de repositório `APP_URL` (padrão: `https://imobflow-d0r2.onrender.com`).
-- `deploy-web.yml` (Cloudflare Pages) só roda se existir a variável `CF_PAGES_PROJECT`; sem ela o Render serve o app inteiro e o job é ignorado em vez de falhar.
-
-
-## Passo a passo: Cloudflare Pages (precisa da sua conta)
-1. Cloudflare > Workers & Pages > Create > Pages > criar projeto (Direct Upload) com o nome desejado.
-2. Nas configurações do projeto, variável de ambiente `API_ORIGIN` = `https://imobflow-d0r2.onrender.com`.
-3. No GitHub (Settings > Secrets and variables > Actions): segredos `CLOUDFLARE_API_TOKEN` (permissão Cloudflare Pages: Edit) e `CLOUDFLARE_ACCOUNT_ID`; variável `CF_PAGES_PROJECT` = nome do projeto.
-4. No Render, `PUBLIC_ORIGIN` = domínio final do Pages (links da vitrine, vCard e mapa usam essa origem).
-5. A cada push em `main` ou na branch de deploy, `deploy-web.yml` publica. Nunca coloque o token no repositório.
+## Hospedagem própria (opcional)
+`npm ci && npm run build && npm start` com as variáveis do `.env.example` (`WEB_DIST=./web/dist`) roda a mesma API em Node (aqui o `sharp` e o `STORAGE_DRIVER=s3`/`local` funcionam). Cloudflare Tunnel expõe de graça.
 
 ## Firebase
-O Firebase gratuito (Spark) só hospeda site estático: não roda a API Node nem o Postgres. Firebase App Hosting exige Blaze (cartão) e Firestore exigiria reescrever a camada de dados. Por isso a API fica no Render + Neon e o Cloudflare na frente.
+O Firebase gratuito (Spark) só hospeda site estático e não roda API nem Postgres; App Hosting exige Blaze (cartão) e o Firestore exigiria reescrever o banco. Não é usado.

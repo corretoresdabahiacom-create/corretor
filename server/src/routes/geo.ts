@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import { z } from 'zod';
 import { requirePerm } from '../lib/auth.js';
 import { geocode } from '../lib/geo.js';

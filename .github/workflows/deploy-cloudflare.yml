@@ -1,0 +1,53 @@
+name: Deploy (Cloudflare Workers)
+# Publica API + app web como um único Worker (plano gratuito, sem cartão). Só roda se os segredos existirem.
+on:
+  push:
+    branches: [main, claude/keen-edison-2dosax]
+  workflow_dispatch:
+concurrency: { group: deploy-cloudflare, cancel-in-progress: false }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verifica configuração
+        id: cfg
+        env: { T: "${{ secrets.CLOUDFLARE_API_TOKEN }}", D: "${{ secrets.DATABASE_URL }}", F: "${{ secrets.FORM_SECRET }}", O: "${{ vars.PUBLIC_ORIGIN }}" }
+        run: |
+          if [ -z "$T" ] || [ -z "$D" ] || [ -z "$F" ] || [ -z "$O" ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::Deploy ignorado: defina CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, DATABASE_URL, FORM_SECRET (segredos) e PUBLIC_ORIGIN (variável). Veja docs/DEPLOY.md."; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ok == 'true'
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+        if: steps.cfg.outputs.ok == 'true'
+      - run: npm run build
+        if: steps.cfg.outputs.ok == 'true'
+      - name: Migrações do banco (somente adicionam; rodam uma vez cada)
+        if: steps.cfg.outputs.ok == 'true'
+        env: { DATABASE_URL: "${{ secrets.DATABASE_URL }}" }
+        run: npm -w server run migrate
+      - name: Deploy do Worker
+        if: steps.cfg.outputs.ok == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: server
+          command: deploy --var PUBLIC_ORIGIN:${{ vars.PUBLIC_ORIGIN }} --var GIT_COMMIT:${{ github.sha }}
+          secrets: |
+            DATABASE_URL
+            FORM_SECRET
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FORM_SECRET: ${{ secrets.FORM_SECRET }}
+      - name: Confere /api/health
+        if: steps.cfg.outputs.ok == 'true'
+        env: { O: "${{ vars.PUBLIC_ORIGIN }}", SHA: "${{ github.sha }}" }
+        run: |
+          for i in $(seq 1 20); do
+            out=$(curl -fsS "$O/api/health" || true); echo "$out"
+            echo "$out" | grep -q "\"commit\":\"${SHA:0:7}\"" && exit 0
+            sleep 6
+          done
+          echo "::error::O Worker não respondeu com o commit esperado."; exit 1

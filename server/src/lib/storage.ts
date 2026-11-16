@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { config } from './config.js';
 import { q, q1 } from '../db/pool.js';
 
@@ -29,20 +28,27 @@ class LocalStorage implements Storage {
 }
 
 class S3Storage implements Storage {
-  private c = new S3Client({
-    region: config.s3.region, endpoint: config.s3.endpoint, forcePathStyle: true,
-    credentials: { accessKeyId: config.s3.accessKeyId ?? '', secretAccessKey: config.s3.secretAccessKey ?? '' },
-  });
-  async put(key: string, data: Buffer, mime: string) { await this.c.send(new PutObjectCommand({ Bucket: config.s3.bucket, Key: key, Body: data, ContentType: mime })); }
+  // SDK carregado sob demanda: não existe no Cloudflare Workers (lá use STORAGE_DRIVER=db).
+  private sdk = (async () => {
+    const m = await import('@aws-sdk/client-s3');
+    const c = new m.S3Client({
+      region: config.s3.region, endpoint: config.s3.endpoint, forcePathStyle: true,
+      credentials: { accessKeyId: config.s3.accessKeyId ?? '', secretAccessKey: config.s3.secretAccessKey ?? '' },
+    });
+    return { m, c };
+  })();
+  async put(key: string, data: Buffer, mime: string) { const { m, c } = await this.sdk; await c.send(new m.PutObjectCommand({ Bucket: config.s3.bucket, Key: key, Body: data, ContentType: mime })); }
   async get(key: string) {
-    const r = await this.c.send(new GetObjectCommand({ Bucket: config.s3.bucket, Key: key }));
+    const { m, c } = await this.sdk;
+    const r = await c.send(new m.GetObjectCommand({ Bucket: config.s3.bucket, Key: key }));
     return Buffer.from(await r.Body!.transformToByteArray());
   }
   async range(key: string, start: number, end: number) {
-    const r = await this.c.send(new GetObjectCommand({ Bucket: config.s3.bucket, Key: key, Range: `bytes=${start}-${end}` }));
+    const { m, c } = await this.sdk;
+    const r = await c.send(new m.GetObjectCommand({ Bucket: config.s3.bucket, Key: key, Range: `bytes=${start}-${end}` }));
     return Buffer.from(await r.Body!.transformToByteArray());
   }
-  async del(key: string) { await this.c.send(new DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key })); }
+  async del(key: string) { const { m, c } = await this.sdk; await c.send(new m.DeleteObjectCommand({ Bucket: config.s3.bucket, Key: key })); }
 }
 
 /** Guarda os arquivos numa tabela do Postgres (bytea). Limite prático: a cota do banco (Neon free ≈ 0,5 GB). */

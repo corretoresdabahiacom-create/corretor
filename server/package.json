@@ -7,19 +7,15 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "reset-password": "tsx src/db/reset-password.ts",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
-    "@fastify/cookie": "^11.1.5",
-    "@fastify/cors": "^11.4.0",
-    "@fastify/helmet": "^13.2.0",
-    "@fastify/multipart": "^10.1.7",
-    "@fastify/rate-limit": "^11.2.2",
-    "@fastify/static": "^10.1.10",
     "argon2": "^0.45.2",
-    "fastify": "^5.12.8",
     "leaflet": "^1.9.4",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
@@ -32,6 +28,7 @@
     "@types/qrcode": "^1.5.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "wrangler": "^4.161.0"
   }
 }

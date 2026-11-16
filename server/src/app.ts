@@ -1,9 +1,5 @@
-import Fastify from 'fastify';
-import path from 'node:path';
-import cookie from '@fastify/cookie';
-import multipart from '@fastify/multipart';
-import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
+import { createApp } from './http/mini.js';
+import { securityHeaders } from './http/security.js';
 import { ZodError } from 'zod';
 import { config } from './lib/config.js';
 import { authRoutes } from './routes/auth.js';
@@ -23,34 +19,21 @@ import { geoRoutes } from './routes/geo.js';
 import { privacyRoutes } from './routes/privacy.js';
 
 export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } = {}) {
-  const app = Fastify({
-    logger: opts.logger
-      ? { level: 'info', redact: ['req.headers.cookie', 'req.headers.authorization', 'req.body.password'] } // sem segredos nos logs
-      : false,
-    bodyLimit: 2 * 1024 * 1024,
-    trustProxy: config.trustProxy,
-  });
+  const app = createApp({ bodyLimit: 2 * 1024 * 1024, trustProxy: config.trustProxy, rateLimit: opts.rateLimit });
 
-  await app.register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        // 'unsafe-inline' é necessário para o script/estilo da página pública /p (conteúdo sempre escapado e testado).
-        scriptSrc: ["'self'", "'unsafe-inline'", 'https://challenges.cloudflare.com'],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https://tile.openstreetmap.org'], // tiles do mapa (OpenStreetMap)
-        frameSrc: ["'self'", 'https://challenges.cloudflare.com', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
-        connectSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        frameAncestors: ["'self'"], // o editor do site mostra a pré-visualização em iframe da mesma origem
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
-      },
-    },
+  securityHeaders(app, {
+    'default-src': ["'self'"],
+    // 'unsafe-inline' é necessário para o script/estilo da página pública /p (conteúdo sempre escapado e testado).
+    'script-src': ["'self'", "'unsafe-inline'", 'https://challenges.cloudflare.com'],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'img-src': ["'self'", 'data:', 'https://tile.openstreetmap.org'], // tiles do mapa (OpenStreetMap)
+    'frame-src': ["'self'", 'https://challenges.cloudflare.com', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
+    'connect-src': ["'self'"],
+    'object-src': ["'none'"],
+    'frame-ancestors': ["'self'"], // o editor do site mostra a pré-visualização em iframe da mesma origem
+    'base-uri': ["'self'"],
+    'form-action': ["'self'"],
   });
-  await app.register(cookie);
-  await app.register(multipart, { limits: { fileSize: config.maxUploadBytes, files: 1, fields: 10 } }); // global: uploads de arquivos e logomarca (vídeo de imóvel sobrescreve o limite na própria rota)
-  await app.register(rateLimit, { global: false, max: opts.rateLimit === false ? 100000 : 100, timeWindow: '1 minute' });
 
   app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof ZodError) {
@@ -66,7 +49,7 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
     return reply.code(code).send({ error: err.message });
   });
 
-  app.get('/api/health', async () => ({ ok: true, app: config.appName, commit: (process.env.RENDER_GIT_COMMIT ?? '').slice(0, 7) || undefined }));
+  app.get('/api/health', async () => ({ ok: true, app: config.appName, runtime: (globalThis as any).navigator?.userAgent?.startsWith('Cloudflare') ? 'cloudflare-workers' : 'node', commit: (process.env.GIT_COMMIT ?? '').slice(0, 7) || undefined }));
 
   await app.register(authRoutes);
   await app.register(peopleRoutes);
@@ -84,23 +67,8 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
   await app.register(vitrineRoutes);
   await app.register(seoRoutes);
   if (config.webDist) {
-    const { default: fstatic } = await import('@fastify/static');
-    await app.register(fstatic, {
-      root: path.resolve(config.webDist), wildcard: false, cacheControl: false,
-      // Arquivos com hash (assets/) nunca mudam; o resto (index, sw.js, manifesto) precisa revalidar para o app atualizar.
-      setHeaders: (res, file) => {
-        if (/[\\/]assets[\\/]/.test(file)) res.header('cache-control', 'public, max-age=31536000, immutable');
-        else if (/sw\.js$/.test(file)) { res.header('cache-control', 'no-cache'); res.header('service-worker-allowed', '/'); }
-        else if (/\.(html|webmanifest)$/.test(file)) res.header('cache-control', 'no-cache');
-        else res.header('cache-control', 'public, max-age=86400');
-        if (/\.webmanifest$/.test(file)) res.header('content-type', 'application/manifest+json');
-      },
-    });
-    app.setNotFoundHandler((req, reply) => {
-      const u = req.url;
-      if (req.method !== 'GET' || u.startsWith('/api/') || u.startsWith('/p/') || u.startsWith('/v/') || u.startsWith('/assets/') || /\.[a-z0-9]{2,5}(\?|$)/i.test(u)) return reply.code(404).send({ error: 'Não encontrado.' });
-      return reply.header('cache-control', 'no-cache').sendFile('index.html');
-    });
+    const { staticFallback } = await import('./http/static.js');
+    app.setNotFoundHandler(staticFallback(config.webDist));
   }
   return app;
 }

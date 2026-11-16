@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../http/mini.js';
 import { sendMail } from '../lib/mailer.js';
 import { limitProblem } from '../lib/plans.js';
 import { z } from 'zod';

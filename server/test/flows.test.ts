@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from '../src/http/mini.js';
 import { addUser, Client, CNPJ_OK, CPF_OK, CPF_OK_2, newApp, newOrg, uniq } from './helpers.js';
 import { isValidCNPJ, isValidCPF } from '../src/lib/validators.js';
 import { matchScore } from '../src/routes/properties.js';

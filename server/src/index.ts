@@ -6,4 +6,5 @@ assertProductionConfig();
 const ran = await migrate();
 if (ran.length) console.log('Migrações aplicadas:', ran.join(', '));
 const app = await buildApp({ logger: true });
-await app.listen({ port: config.port, host: config.host });
+const { listen } = await import('./http/node.js');
+await listen(app, { port: config.port, host: config.host });

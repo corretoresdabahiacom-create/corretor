@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
-import argon2 from 'argon2';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from '../http/mini.js';
 import { q, q1 } from '../db/pool.js';
 import { config } from './config.js';
 import { can, type Permission, type Role } from './permissions.js';
@@ -15,8 +14,8 @@ export interface AuthUser {
   role: Role;
 }
 
-declare module 'fastify' {
-  interface FastifyRequest {
+declare module '../http/mini.js' {
+  interface HttpRequest {
     user?: AuthUser;
   }
 }
@@ -24,8 +23,30 @@ declare module 'fastify' {
 export const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
 export const newToken = () => crypto.randomBytes(32).toString('base64url');
 
-export const hashPassword = (p: string) => argon2.hash(p, { type: argon2.argon2id });
-export const verifyPassword = (hash: string, p: string) => argon2.verify(hash, p).catch(() => false);
+// Senhas: PBKDF2-HMAC-SHA512 via WebCrypto (roda em Node e em Cloudflare Workers, que limita PBKDF2 a 100.000 iterações).
+// Hashes antigos (argon2id) continuam válidos apenas quando rodando em Node; no Worker use `npm -w server run reset-password`.
+const PBKDF2_ITER = Math.min(100_000, Number(process.env.PBKDF2_ITERATIONS ?? 100_000));
+const b64 = (u: Uint8Array) => Buffer.from(u).toString('base64');
+async function pbkdf2(pw: string, salt: Uint8Array<ArrayBuffer>, iter: number) {
+  const key = await crypto.webcrypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.webcrypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-512', salt, iterations: iter }, key, 512));
+}
+export async function hashPassword(p: string) {
+  const salt = new Uint8Array(crypto.randomBytes(16));
+  return `pbkdf2$sha512$${PBKDF2_ITER}$${b64(salt)}$${b64(await pbkdf2(p, salt, PBKDF2_ITER))}`;
+}
+export async function verifyPassword(hash: string, p: string): Promise<boolean> {
+  try {
+    if (hash.startsWith('pbkdf2$')) {
+      const [, , iter, salt, want] = hash.split('$');
+      const got = Buffer.from(await pbkdf2(p, new Uint8Array(Buffer.from(salt, 'base64')), Number(iter)));
+      const w = Buffer.from(want, 'base64');
+      return got.length === w.length && crypto.timingSafeEqual(got, w);
+    }
+    if (hash.startsWith('$argon2')) { const argon2 = (await import('argon2')).default; return await argon2.verify(hash, p); }
+  } catch { /* hash legado indisponível neste ambiente */ }
+  return false;
+}
 
 export function passwordProblem(p: string): string | null {
   if (p.length < 10) return 'A senha precisa ter pelo menos 10 caracteres.';

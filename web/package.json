@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node ../scripts/copy-vendor.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
