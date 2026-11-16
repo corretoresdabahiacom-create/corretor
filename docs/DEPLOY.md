@@ -7,15 +7,15 @@ Um único **Cloudflare Worker** serve a API (`/api`), as páginas públicas (`/p
 - Local: crie um `.dev.vars` na raiz (DATABASE_URL, FORM_SECRET, PUBLIC_ORIGIN, COOKIE_SECURE=false, NODE_ENV=development), rode `npm run build` e `npm -w server run worker:dev` (http://localhost:8787).
 
 ## Opção A — pelo painel da Cloudflare (Workers Builds, sem GitHub Actions)
-1. Workers & Pages → **Create → Import a repository** → escolha o repositório do ImobFlow e a branch `main`. O **nome do Worker deve ser `imobflow`** (igual ao `name` do `wrangler.jsonc`).
+1. Workers & Pages → **Create → Import a repository** → escolha o repositório do ImobFlow e a branch `main`. O **nome do Worker deve ser igual ao `name` do `wrangler.jsonc`** (hoje `corretor`) (igual ao `name` do `wrangler.jsonc`).
 2. **Build command:** `npm run cf:build` (compila o web e aplica as migrações no Neon). **Deploy command:** `npx wrangler deploy --var GIT_COMMIT:$WORKERS_CI_COMMIT_SHA`. Diretório raiz: `/` (vazio).
 3. Em **Settings → Build → Variables and secrets** (variáveis de build), crie `DATABASE_URL` (Neon production, com `?sslmode=require`).
-4. Em **Settings → Variables and Secrets** (variáveis do Worker), crie como **Secret**: `DATABASE_URL`, `FORM_SECRET` (≥ 24 caracteres aleatórios) e `PUBLIC_ORIGIN` (a URL https final do Worker, ex. `https://imobflow.SEUSUBDOMINIO.workers.dev`). Secrets sobrevivem aos deploys; variáveis comuns criadas no painel são apagadas a cada deploy.
+4. Em **Settings → Variables and Secrets** (variáveis do Worker), crie como **Secret**: `DATABASE_URL`, `FORM_SECRET` (≥ 24 caracteres aleatórios) e `PUBLIC_ORIGIN` (a URL https final do Worker, ex. `https://corretor.SEUSUBDOMINIO.workers.dev`). Secrets sobrevivem aos deploys; variáveis comuns criadas no painel são apagadas a cada deploy.
 5. Dispare um novo build (**Deployments → Retry** ou novo push). Cada push em `main` publica sozinho.
 
 ## Opção B — GitHub Actions (precisa da sua conta Cloudflare)
 1. Crie conta em cloudflare.com (não pede cartão). Em **My Profile → API Tokens → Create Token**, use o modelo **Edit Cloudflare Workers**. Anote também o **Account ID** (página inicial da conta, coluna direita).
-2. Em **Workers & Pages** abra **Overview**/**Settings** e registre seu subdomínio `workers.dev` (a URL ficará `https://imobflow.<subdominio>.workers.dev`). Domínio próprio pode ser ligado depois em Settings → Domains.
+2. Em **Workers & Pages** abra **Overview**/**Settings** e registre seu subdomínio `workers.dev` (a URL ficará `https://corretor.<subdominio>.workers.dev`). Domínio próprio pode ser ligado depois em Settings → Domains.
 3. No GitHub: **Settings → Secrets and variables → Actions**
    - Segredos: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `DATABASE_URL` (Neon `production`, com `?sslmode=require`), `FORM_SECRET` (≥ 24 caracteres aleatórios).
    - Variável: `PUBLIC_ORIGIN` = a URL https final do Worker (links da vitrine, vCard, mapa e cookies usam essa origem).

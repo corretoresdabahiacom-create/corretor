@@ -1,6 +1,6 @@
 {
   // Worker único: serve a API, as páginas públicas (/p, /v) e o app web (arquivos estáticos). Plano gratuito, sem cartão.
-  "name": "imobflow",
+  "name": "corretor",
   "main": "server/src/worker.ts",
   "compatibility_date": "2025-11-01",
   "compatibility_flags": ["nodejs_compat", "enable_nodejs_http_server_modules"],
