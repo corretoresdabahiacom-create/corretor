@@ -48,6 +48,20 @@ export async function verifyPassword(hash: string, p: string): Promise<boolean> 
   return false;
 }
 
+/** Hash que este ambiente consegue conferir? (argon2 antigo não roda no Cloudflare Workers.) */
+export async function canVerifyPassword(hash: string): Promise<boolean> {
+  if (hash.startsWith('pbkdf2$')) return true;
+  if (hash.startsWith('$argon2')) return import('argon2').then(() => true, () => false);
+  return false;
+}
+
+/** Hash antigo ou mais fraco que o atual: regravar no próximo login correto. */
+export const needsRehash = (hash: string) => !hash.startsWith('pbkdf2$') || Number(hash.split('$')[2]) < PBKDF2_ITER;
+
+// Conferência falsa para e-mails inexistentes: mesmo custo de uma senha real, para o tempo de resposta não revelar quem tem conta.
+const DUMMY_HASH = `pbkdf2$sha512$${PBKDF2_ITER}$${Buffer.alloc(16).toString('base64')}$${Buffer.alloc(64).toString('base64')}`;
+export const burnPasswordCheck = (p: string) => verifyPassword(DUMMY_HASH, p);
+
 export function passwordProblem(p: string): string | null {
   if (p.length < 10) return 'A senha precisa ter pelo menos 10 caracteres.';
   if (!/[a-zA-Z]/.test(p) || !/\d/.test(p)) return 'Use letras e números na senha.';
@@ -79,12 +93,19 @@ export async function loadUser(req: FastifyRequest): Promise<AuthUser | null> {
   return row ? { id: row.id, orgId: row.org_id, email: row.email, name: row.name, role: row.role } : null;
 }
 
+/** Origin igual ao próprio host da requisição é a mesma origem (o navegador não deixa outro site forjar o Host).
+ * Evita bloquear o app quando ele é aberto por outro endereço (domínio próprio, workers.dev) que não o PUBLIC_ORIGIN. */
+function sameHost(origin: string, host: string | undefined) {
+  if (!host) return false;
+  try { const u = new URL(origin); return u.host === host && (u.protocol === 'https:' || !config.isProd); } catch { return false; }
+}
+
 /** Exige login. Em mutações, também exige JSON e Origin confiável (proteção CSRF além do SameSite). */
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.headers.origin;
     const devOrigin = !config.isProd && (origin?.startsWith('http://127.0.0.1') || origin?.startsWith('http://localhost'));
-    if (origin && origin !== config.publicOrigin && !devOrigin) {
+    if (origin && origin !== config.publicOrigin && !devOrigin && !sameHost(origin, req.headers.host)) {
       return reply.code(403).send({ error: 'Origem não permitida.' });
     }
   }

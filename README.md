@@ -10,12 +10,12 @@ npm install
 npm run migrate                 # cria/atualiza o schema (PostgreSQL 16)
 npm run dev:server              # API em :3001
 npm run dev:web                 # app em :5173 (proxy /api)
-npm test                        # 20 testes de fluxo no banco imobflow_test
+npm test                        # 106 testes no banco imobflow_test (nunca produção)
 ```
 Requer PostgreSQL 16 com extensões `pgcrypto` e `pg_trgm`.
 
 ## Segurança (resumo)
-Senhas argon2id; sessão opaca em cookie httpOnly; permissões por papel validadas no servidor; toda consulta filtrada por organização;
+Senhas PBKDF2-SHA512 (100.000 iterações, WebCrypto); sessão opaca em cookie httpOnly; permissões por papel validadas no servidor; toda consulta filtrada por organização;
 CPF/CNPJ e observações privadas mascarados por permissão; rate limit em login/cadastro/recuperação; exportação CSV protegida contra injeção de fórmula; trilha de auditoria.
 Não há segredos no código. Este projeto **não afirma conformidade legal** (LGPD etc.); isso exige revisão jurídica.
 
@@ -24,4 +24,4 @@ Não há segredos no código. Este projeto **não afirma conformidade legal** (L
 pg_dump -Fc -h HOST -U imobflow imobflow > backup-$(date +%F).dump
 pg_restore -c -d imobflow backup.dump        # teste a restauração periodicamente
 ```
-Deploy: ver docs/DEPLOY.md
+Produção: Cloudflare Workers (plano gratuito) + Neon, publicado a cada push em `main` — ver docs/DEPLOY.md.

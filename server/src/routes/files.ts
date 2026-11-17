@@ -1,4 +1,5 @@
 import { thumb as makeThumb } from '../lib/image.js';
+import { ByteCache, defaultCacheBytes } from '../lib/byteCache.js';
 import type { FastifyInstance, FastifyRequest } from '../http/mini.js';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -134,13 +135,13 @@ export async function fileRoutes(app: FastifyInstance) {
   });
 
   // Miniatura de foto para listas do app (mesma permissão do download; sem registro de auditoria a cada exibição).
-  const thumbs = new Map<string, { data: Buffer; mime: string }>();
+  const thumbs = new ByteCache<{ data: Buffer; mime: string }>(defaultCacheBytes());
   app.get('/api/files/:id/thumb', { preHandler: requireAuth }, async (req, reply) => {
     const f = await loadFile(req, reply); if (!f) return;
     if (f.category !== 'foto') return reply.code(400).send({ error: 'Só fotos têm miniatura.' });
     const w = [320, 480, 800].includes(Number((req.query as any).w)) ? Number((req.query as any).w) : 480;
     const ck = `${f.id}:${w}`; let out = thumbs.get(ck);
-    if (!out) { out = await makeThumb(await storage().get(f.storage_key), w, 76); thumbs.set(ck, out); if (thumbs.size > 400) thumbs.delete(thumbs.keys().next().value!); }
+    if (!out) { out = await makeThumb(await storage().get(f.storage_key), w, 76); thumbs.set(ck, out); }
     return reply.header('content-type', out.mime).header('cache-control', 'private, max-age=300').header('x-content-type-options', 'nosniff').send(out.data);
   });
 

@@ -90,7 +90,7 @@ function head(c: SiteCtx, o: { title: string; desc: string; url: string; img?: s
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(o.title)}"><meta property="og:description" content="${esc(o.desc)}"><meta property="og:url" content="${esc(o.url)}">${o.img ? `<meta property="og:image" content="${esc(o.img)}"><meta name="twitter:card" content="summary_large_image">` : ''}
 ${c.hasLogo ? `<link rel="icon" href="/api/public/brand/${esc(c.org.slug)}/logo">` : ''}${c.preview ? '<meta name="robots" content="noindex">' : ''}
 ${o.ld ? `<script type="application/ld+json">${JSON.stringify(o.ld).replace(/</g, '\\u003c')}</script>` : ''}
-<style>${theme(c)}${CSS}${MAP_CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
+<style>${theme(c)}${CSS}${MAP_CSS}${SIM_CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
 }
 
 const orgName = (c: SiteCtx) => c.org.public_name || c.org.name;
@@ -250,6 +250,36 @@ function contactBlock(c: SiteCtx) {
   return items.length ? `<section class="sc" id="contato"><div class="w"><div class="st"><h2>Fale com a gente</h2></div><div class="ct">${items.join('')}</div></div></section>` : '';
 }
 
+// ---------- simulador de financiamento (só estimativa, calculada no navegador) ----------
+// SAC: amortização constante (parcela cai); Price: parcela fixa. Juros anuais efetivos convertidos para mensais.
+export const SIM_CALC = `function simCalc(pv,anos,taxaAno,sist){var n=Math.round(anos*12),i=Math.pow(1+taxaAno/100,1/12)-1;if(!(pv>0)||!(n>0)||!(taxaAno>=0))return null;if(sist==='price'){var p=i>0?pv*i/(1-Math.pow(1+i,-n)):pv/n;return{first:p,last:p,total:p*n}}var a=pv/n;return{first:a+pv*i,last:a+a*i,total:pv+i*pv*(n+1)/2}}`;
+const SIM_JS = `<script>(function(){${SIM_CALC}
+var f=document.getElementById('sim');if(!f)return;var o=f.querySelector('output');f.addEventListener('submit',function(e){e.preventDefault()});
+var brl=function(v){return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0})};
+var num=function(s){return Number(String(s||'').replace(/[^0-9,.]/g,'').replace(/\\./g,'').replace(',','.'))};
+var el=function(n){return f.elements.namedItem(n)};
+function run(){var price=Number(f.dataset.price),ent=num(el('ent').value),pv=price-ent,anos=Number(el('anos').value),tx=num(el('tx').value),s=el('sist').value,r=simCalc(pv,anos,tx,s);
+ if(!r||ent<0||ent>=price||!(tx<=40)){o.innerHTML='<p>Confira os valores: a entrada precisa ser menor que o preço e os juros, até 40% ao ano.</p>';return null}
+ var parc=s==='price'?'Parcela: <b>'+brl(r.first)+'</b> por mês (fixa)':'1ª parcela: <b>'+brl(r.first)+'</b>, caindo até <b>'+brl(r.last)+'</b> na última';
+ o.innerHTML='<p>Valor financiado: <b>'+brl(pv)+'</b></p><p>'+parc+'</p><p>Total aproximado pago ao banco: '+brl(r.total)+'</p><p>Renda familiar sugerida: a partir de <b>'+brl(r.first/0.3)+'</b> por mês</p>'+(ent<price*0.2?'<p class="warn">Os bancos costumam financiar até 80% do valor: a entrada costuma ser de pelo menos '+brl(price*0.2)+'.</p>':'');
+ return{pv:pv,r:r,s:s,anos:anos,tx:tx,ent:ent}}
+f.addEventListener('input',run);f.addEventListener('change',run);run();
+var b=document.getElementById('simq');if(b)b.addEventListener('click',function(){var x=run(),lf=document.getElementById('lf');if(!x||!lf)return;
+ lf.elements.namedItem('message').value='Olá! Simulei um financiamento para este imóvel: entrada de '+brl(x.ent)+', '+x.anos+' anos, '+(x.s==='price'?'tabela Price':'SAC')+', juros de '+String(x.tx).replace('.',',')+'% ao ano (1ª parcela de '+brl(x.r.first)+'). Gostaria de ajuda com o financiamento.';
+ lf.scrollIntoView({behavior:'smooth',block:'start'});lf.elements.namedItem('name').focus()})})();</script>`;
+const SIM_CSS = `.sim .fm{background:none;border:0;padding:0}.sim output{display:grid;gap:6px;margin:4px 0}.sim output p{margin:0;color:var(--tx);white-space:normal}.sim output .warn{margin-top:4px}.sim .nt{font-size:.85rem;margin:0;color:var(--mut);white-space:normal}`;
+
+/** Bloco do simulador; só para imóvel à venda com preço visível. */
+export function financeBox(price: number) {
+  const ent = Math.round(price * 0.2);
+  return `<div class="box sim"><h2>Simule o financiamento</h2><form class="fm" id="sim" data-price="${Math.round(price)}" novalidate>
+<div class="two"><label>Entrada (R$)<input name="ent" inputmode="numeric" value="${ent.toLocaleString('pt-BR')}"></label><label>Prazo<select name="anos">${[10, 15, 20, 25, 30, 35].map((y) => `<option value="${y}"${y === 30 ? ' selected' : ''}>${y} anos</option>`).join('')}</select></label></div>
+<div class="two"><label>Juros ao ano (%)<input name="tx" inputmode="decimal" value="12"></label><label>Sistema<select name="sist"><option value="sac">SAC (parcela cai)</option><option value="price">Price (parcela fixa)</option></select></label></div>
+<output aria-live="polite"></output>
+<p class="nt">Estimativa sem seguros obrigatórios, tarifas e correção (TR). Juros de exemplo: confira a taxa do seu banco. A aprovação e as condições dependem da análise de crédito.</p>
+<button class="btn" type="button" id="simq">Quero ajuda com o financiamento</button></form></div>`;
+}
+
 export function renderProperty(c: SiteCtx, d: any, similar: any[], leadToken: string, consent: string) {
   const root = `/v/${encodeURIComponent(c.org.slug)}`, url = `${c.base}${root}/imovel/${d.code}`;
   const pl = [d.neighborhood, d.city && `${d.city}${d.state ? '/' + d.state : ''}`].filter(Boolean).join(', ');
@@ -275,6 +305,7 @@ ${d.description ? `<div class="box"><h2>Descrição</h2><p>${esc(d.description)}
 ${d.features.length ? `<div class="box"><h2>Características</h2><div class="tags">${d.features.map((x: string) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
 ${extra.length ? `<div class="box"><h2>Detalhes</h2><p>${esc(extra.join('\n'))}</p></div>` : ''}
 ${videos.length || vfiles.length ? `<div class="box"><h2>Vídeo${videos.length + vfiles.length > 1 ? 's' : ''}</h2><div class="vds">${vfiles.map((v) => `<div class="vd"><video controls preload="metadata" playsinline style="width:100%;border-radius:var(--r);background:#000;max-height:70vh" aria-label="${esc(v.caption || d.title)}"><source src="${esc(v.url)}" type="${esc(v.mime)}">Seu navegador não toca este vídeo.</video>${v.caption ? `<p class="small">${esc(v.caption)}</p>` : ''}</div>`).join('')}${videos.map((v) => `<div class="vd"><div class="fr"><iframe src="${esc(embedUrl(v))}" title="${esc(v.title || d.title)}" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${v.title ? `<b>${esc(v.title)}</b>` : ''}</div>`).join('')}</div></div>` : ''}
+${d.prices?.venda > 0 ? financeBox(Number(d.prices.venda)) : ''}
 ${pl || d.map ? `<div class="box"><h2>Localização</h2>${pl ? `<p>${esc(pl)}</p><p style="margin-top:8px"><a class="lnk" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pl)}" rel="noopener">Ver região no mapa →</a></p>` : ''}${d.map ? mapEmbed([{ ...d.map }]) + (d.map.exact ? '' : '<p class="mapn">Localização aproximada: o endereço exato não é divulgado.</p>') : ''}</div>` : ''}
 </div><aside class="ask box" style="margin-top:0">${pr ? `<div class="pl">${pr}</div>` : '<div class="pr c" style="margin-bottom:12px">Valor sob consulta</div>'}
 ${wa ? `<a class="btn wa" href="${esc(wa)}" rel="noopener" style="margin-bottom:16px">${ic('wa')} Conversar no WhatsApp</a>` : ''}<h2>Tenho interesse</h2>
@@ -283,7 +314,7 @@ ${wa ? `<a class="btn wa" href="${esc(wa)}" rel="noopener" style="margin-bottom:
 <label>Mensagem<textarea name="message" rows="3" maxlength="1000">Olá! Gostaria de mais informações sobre este imóvel.</textarea></label><div class="hp" aria-hidden="true"><label>Site<input name="website" tabindex="-1" autocomplete="off"></label></div>
 <label class="ck"><input type="checkbox" name="consent"> <span>${esc(consent)}</span></label><button class="btn" type="submit">Enviar</button><p role="status"></p></form></aside></div>
 ${similar.length ? `<section class="sc"><div class="st"><h2>Você também pode gostar</h2></div><div class="grid">${similar.map((p) => propCard(c, p)).join('')}</div></section>` : ''}
-</main>${footer(c)}${SCRIPT(c.org.slug)}</body></html>`;
+</main>${footer(c)}${SCRIPT(c.org.slug)}${d.prices?.venda > 0 ? SIM_JS : ''}</body></html>`;
 }
 
 export { SECTION_LABEL };

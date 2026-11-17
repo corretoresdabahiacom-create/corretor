@@ -1,2 +1,3 @@
 declare module 'cloudflare:workers' { export const env: Record<string, unknown>; }
-declare module 'cloudflare:node' { export function httpServerHandler(o: { port: number }): { fetch(req: Request, env?: unknown, ctx?: unknown): Promise<Response> }; }
+// Migrações .sql importadas como texto no bundle do Worker (regra "Text" no wrangler.jsonc).
+declare module '*.sql' { const sql: string; export default sql; }

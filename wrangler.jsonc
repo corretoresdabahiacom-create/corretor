@@ -3,7 +3,9 @@
   "name": "corretor",
   "main": "server/src/worker.ts",
   "compatibility_date": "2025-11-01",
-  "compatibility_flags": ["nodejs_compat", "enable_nodejs_http_server_modules"],
+  "compatibility_flags": ["nodejs_compat"],
+  // As migrações .sql entram no bundle como texto; o Worker aplica as pendentes sozinho (AUTO_MIGRATE=false desliga).
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   "assets": {
     "directory": "web/dist",
     "not_found_handling": "single-page-application",

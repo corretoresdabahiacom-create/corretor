@@ -18,7 +18,7 @@
 - **Backups** (Neon: histórico de restauração limitado; backups feitos por você com `scripts/backup.sh`) mantêm os dados até expirarem.
 - Não há exportação em lote nem portabilidade em formato padronizado além do JSON.
 - Não há controle de bases legais por finalidade, nem registro formal de operações (ROPA), nem DPO designado: são decisões da imobiliária.
-- Logs de acesso do provedor de hospedagem (Render/Cloudflare) seguem as políticas desses provedores.
+- Logs de acesso do provedor de hospedagem (Cloudflare, com Observability ligado no Worker) e do banco (Neon) seguem as políticas desses provedores. Endereços com token (ex.: link da agenda) podem aparecer nesses logs.
 - O mapa usa tiles do OpenStreetMap e o endereço digitado em "Localizar pelo endereço" é enviado ao Nominatim (OpenStreetMap). Nenhum dado de pessoas é enviado.
 
 ## Procedimento sugerido para pedidos de titulares (rascunho)
@@ -29,8 +29,8 @@
 5. Responda dentro do prazo definido pela lei e guarde a evidência (a auditoria já registra a execução).
 
 ## Procedimento sugerido para incidentes de segurança (rascunho)
-1. **Conter:** troque a senha dos usuários afetados (o sistema encerra sessões ao trocar a senha), revogue acessos, rotacione `DATABASE_URL`/senha do banco no Neon e `FORM_SECRET` no Render.
-2. **Avaliar:** consulte o log de auditoria (admin) e os logs do Render/Neon: quais dados, quantos titulares, desde quando.
+1. **Conter:** troque a senha dos usuários afetados (o sistema encerra sessões ao trocar a senha), revogue acessos, rotacione `DATABASE_URL`/senha do banco no Neon e `FORM_SECRET` nos segredos do Worker (Cloudflare).
+2. **Avaliar:** consulte o log de auditoria (admin) e os logs do Worker (Cloudflare → Observability) e do Neon: quais dados, quantos titulares, desde quando.
 3. **Registrar:** data/hora, descrição, dados envolvidos, medidas tomadas.
 4. **Comunicar:** com seu advogado, decida se há risco relevante aos titulares e se é preciso avisar a ANPD e os titulares dentro do prazo legal.
 5. **Corrigir e aprender:** corrija a causa, atualize este documento e `docs/SEGURANCA.md`.

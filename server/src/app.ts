@@ -2,6 +2,7 @@ import { createApp } from './http/mini.js';
 import { securityHeaders } from './http/security.js';
 import { ZodError } from 'zod';
 import { config } from './lib/config.js';
+import { q1 } from './db/pool.js';
 import { authRoutes } from './routes/auth.js';
 import { peopleRoutes } from './routes/people.js';
 import { propertyRoutes } from './routes/properties.js';
@@ -21,19 +22,7 @@ import { privacyRoutes } from './routes/privacy.js';
 export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } = {}) {
   const app = createApp({ bodyLimit: 2 * 1024 * 1024, trustProxy: config.trustProxy, rateLimit: opts.rateLimit });
 
-  securityHeaders(app, {
-    'default-src': ["'self'"],
-    // 'unsafe-inline' é necessário para o script/estilo da página pública /p (conteúdo sempre escapado e testado).
-    'script-src': ["'self'", "'unsafe-inline'", 'https://challenges.cloudflare.com'],
-    'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'https://tile.openstreetmap.org'], // tiles do mapa (OpenStreetMap)
-    'frame-src': ["'self'", 'https://challenges.cloudflare.com', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
-    'connect-src': ["'self'"],
-    'object-src': ["'none'"],
-    'frame-ancestors': ["'self'"], // o editor do site mostra a pré-visualização em iframe da mesma origem
-    'base-uri': ["'self'"],
-    'form-action': ["'self'"],
-  });
+  securityHeaders(app); // política em http/security.ts (também aplicada ao app web via web/public/_headers)
 
   app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof ZodError) {
@@ -49,7 +38,15 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
     return reply.code(code).send({ error: err.message });
   });
 
-  app.get('/api/health', async () => ({ ok: true, app: config.appName, runtime: (globalThis as any).navigator?.userAgent?.startsWith('Cloudflare') ? 'cloudflare-workers' : 'node', commit: (process.env.GIT_COMMIT ?? '').slice(0, 7) || undefined }));
+  // Diagnóstico público e barato: confere o banco (sem revelar detalhes) para saber se o deploy está realmente funcionando.
+  app.get('/api/health', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (_req, reply) => {
+    const db = await Promise.race([q1('SELECT 1 AS ok').then(() => 'ok', () => 'erro'), new Promise<string>((r) => setTimeout(() => r('lento'), 5000))]);
+    return reply.code(db === 'ok' ? 200 : 503).send({
+      ok: db === 'ok', app: config.appName, db,
+      runtime: (globalThis as any).navigator?.userAgent?.startsWith('Cloudflare') ? 'cloudflare-workers' : 'node',
+      commit: (process.env.GIT_COMMIT ?? '').slice(0, 7) || undefined,
+    });
+  });
 
   await app.register(authRoutes);
   await app.register(peopleRoutes);

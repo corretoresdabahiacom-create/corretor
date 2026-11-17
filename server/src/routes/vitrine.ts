@@ -1,6 +1,7 @@
 import type { FastifyInstance } from '../http/mini.js';
 import crypto from 'node:crypto';
 import { normalize, thumb as makeThumb, svgToPng } from '../lib/image.js';
+import { ByteCache, defaultCacheBytes } from '../lib/byteCache.js';
 import { z } from 'zod';
 import { q, q1 } from '../db/pool.js';
 import { audit, requireAuth, requirePerm } from '../lib/auth.js';
@@ -171,7 +172,7 @@ export async function vitrineRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  const siteThumbs = new Map<string, { data: Buffer; mime: string }>();
+  const siteThumbs = new ByteCache<{ data: Buffer; mime: string }>(defaultCacheBytes());
   app.get('/api/public/site/:slug/img/:id', rl(300, '1 minute'), async (req, reply) => {
     const { slug, id } = req.params as any;
     if (!z.string().uuid().safeParse(id).success) return reply.code(404).send({ error: 'Imagem não encontrada.' });
@@ -182,7 +183,7 @@ export async function vitrineRoutes(app: FastifyInstance) {
     if (!buf) {
       const data = await storage().get(row.storage_key).catch(() => null); if (!data) return reply.code(404).send({ error: 'Imagem não encontrada.' });
       buf = await makeThumb(data, width, 80, false);
-      siteThumbs.set(ck, buf); if (siteThumbs.size > 300) siteThumbs.delete(siteThumbs.keys().next().value!);
+      siteThumbs.set(ck, buf);
     }
     return reply.header('content-type', buf.mime).header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(buf.data);
   });

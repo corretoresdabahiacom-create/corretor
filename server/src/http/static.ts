@@ -13,8 +13,11 @@ export function staticFallback(webDist: string) {
     const u = req.url.split('?')[0];
     const isApi = u.startsWith('/api/') || u.startsWith('/p/') || u.startsWith('/v/');
     if (req.method !== 'GET' || isApi) return reply.code(404).send({ error: 'Não encontrado.' });
-    let file = path.join(root, decodeURIComponent(u));
-    if (!file.startsWith(root)) return reply.code(404).send({ error: 'Não encontrado.' });
+    let decoded: string;
+    try { decoded = decodeURIComponent(u); } catch { return reply.code(400).send({ error: 'Endereço inválido.' }); }
+    let file = path.join(root, decoded);
+    // "root + sep": sem isso, /x/web/dist2/... passaria por começar com /x/web/dist
+    if (file !== root && !file.startsWith(root + path.sep)) return reply.code(404).send({ error: 'Não encontrado.' });
     let data = await fs.readFile(file).catch(() => null);
     if (!data) {
       if (u.startsWith('/assets/') || /\.[a-z0-9]{2,5}$/i.test(u)) return reply.code(404).send({ error: 'Não encontrado.' });

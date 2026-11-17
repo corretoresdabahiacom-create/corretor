@@ -171,8 +171,13 @@ function Shell() {
 }
 
 export default function App() {
-  const { session, loading, offline, refresh } = useSession();
+  const { session, loading, offline, unavailable, refresh } = useSession();
   if (loading) return <Spinner />;
+  if (unavailable && !session) return (
+    <div className="auth"><div className="brand"><span className="brand-mark">IF</span>ImobFlow</div><div className="card stack" role="alert"><h1 style={{ fontSize: '1.3rem', margin: 0 }}>O sistema ainda não está pronto</h1>
+      {unavailable.problems.length ? <ul style={{ margin: 0, paddingLeft: 20 }}>{unavailable.problems.map((p) => <li key={p}>{p}</li>)}</ul> : null}
+      <p className="muted">{unavailable.error}</p><button className="btn primary" onClick={refresh}>Tentar de novo</button></div></div>
+  );
   if (offline && !session) return (
     <div className="auth"><div className="brand"><span className="brand-mark">IF</span>ImobFlow</div><div className="card stack" role="alert"><h1 style={{ fontSize: '1.3rem', margin: 0 }}>Você está sem internet</h1><p className="muted">O ImobFlow precisa de conexão para mostrar seus dados atualizados. Assim que a internet voltar, a tela abre sozinha.</p><button className="btn primary" onClick={refresh}>Tentar de novo</button></div></div>
   );

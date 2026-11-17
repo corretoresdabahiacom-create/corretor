@@ -10,7 +10,8 @@ import { isValidPhone, normalizePhone } from '../lib/validators.js';
 import { limitProblem, usage } from '../lib/plans.js';
 import { storage } from '../lib/storage.js';
 import { thumb as makeThumb } from '../lib/image.js';
-const thumbs = new Map<string, { data: Buffer; mime: string }>(); // cache simples em memória das miniaturas
+import { ByteCache, defaultCacheBytes } from '../lib/byteCache.js';
+const thumbs = new ByteCache<{ data: Buffer; mime: string }>(defaultCacheBytes()); // miniaturas em memória, limitado por bytes
 
 const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow } } });
 export const CONSENT_TEXT = 'Autorizo que a imobiliária use meus dados de contato para responder a este interesse no imóvel.';
@@ -132,7 +133,7 @@ export async function portalRoutes(app: FastifyInstance) {
     const data = await storage().get(f.storage_key);
     if (Number.isInteger(w) && w >= 64 && w <= 1600) {
       const ck = `${f.id}:${w}`; let out = thumbs.get(ck);
-      if (!out) { out = await makeThumb(data, w, 78); if (out) { thumbs.set(ck, out); if (thumbs.size > 200) thumbs.delete(thumbs.keys().next().value!); } }
+      if (!out) { out = await makeThumb(data, w, 78); if (out) thumbs.set(ck, out); }
       if (out) return reply.header('content-type', out.mime).header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').send(out.data);
     }
     return reply.header('content-type', f.mime).header('cache-control', 'public, max-age=3600').header('x-content-type-options', 'nosniff').send(data);

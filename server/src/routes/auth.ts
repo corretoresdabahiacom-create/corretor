@@ -6,7 +6,7 @@ import { effectiveTheme } from '../lib/appTheme.js';
 import { q, q1, tx } from '../db/pool.js';
 import {
   audit, COOKIE, createSession, hashPassword, hashToken, newToken, passwordProblem,
-  requireAuth, requirePerm, verifyPassword,
+  requireAuth, requirePerm, verifyPassword, burnPasswordCheck, canVerifyPassword, needsRehash,
 } from '../lib/auth.js';
 import { config } from '../lib/config.js';
 import { ROLE_PERMISSIONS } from '../lib/permissions.js';
@@ -70,10 +70,14 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', rl(10, '15 minutes'), async (req, reply) => {
     const body = z.object({ email: emailSchema, password: z.string().min(1) }).parse(req.body);
     const u = await q1('SELECT id, org_id, password_hash, active FROM users WHERE email=$1', [body.email]);
-    // mensagem genérica: não revela se o e-mail existe
-    if (!u || !u.active || !(await verifyPassword(u.password_hash, body.password))) {
-      return reply.code(401).send({ error: 'E-mail ou senha incorretos.' });
+    // mensagem genérica: não revela se o e-mail existe (e o tempo de resposta também não: conferência falsa)
+    if (!u || !u.active) { await burnPasswordCheck(body.password); return reply.code(401).send({ error: 'E-mail ou senha incorretos.' }); }
+    if (!(await canVerifyPassword(u.password_hash))) {
+      // Conta criada antes da mudança para o Cloudflare (senha argon2): sem isto, a pessoa via só "senha incorreta" para sempre.
+      return reply.code(409).send({ error: 'Esta conta foi criada antes da mudança de servidor e precisa de uma nova senha. Peça ao responsável pelo sistema para redefini-la.', code: 'senha_legada' });
     }
+    if (!(await verifyPassword(u.password_hash, body.password))) return reply.code(401).send({ error: 'E-mail ou senha incorretos.' });
+    if (needsRehash(u.password_hash)) await q('UPDATE users SET password_hash=$2 WHERE id=$1', [u.id, await hashPassword(body.password)]);
     await createSession(u.id, reply);
     req.user = { id: u.id, orgId: u.org_id, email: body.email, name: '', role: 'consulta' };
     await audit(req, 'auth.login', 'user', u.id);

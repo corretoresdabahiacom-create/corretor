@@ -104,5 +104,24 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 - Worker único (`server/src/worker.ts`, `wrangler.jsonc`): API + páginas públicas + app web (Workers Assets). Pool de banco por requisição. Testado localmente com `wrangler dev`: cadastro, login, sessão, criação de pessoa, upload de imagem, vitrine e cabeçalhos de segurança.
 - Senhas: PBKDF2-SHA512 (WebCrypto); hashes argon2 antigos só funcionam em Node → `npm -w server run reset-password`.
 - Imagens: `sharp` em Node; no Worker valida/limpa EXIF e o navegador reduz as fotos antes do envio.
-- Render, Pages Functions e os workflows antigos removidos; `deploy-cloudflare.yml` migra o banco, publica e confere `/api/health`.
-- **Não testado**: deploy real na sua conta Cloudflare, limite de 10 ms de CPU no login (PBKDF2), Neon a partir dos servidores da Cloudflare.
+- Render, Pages Functions e os workflows antigos removidos. Publicação: Cloudflare Workers Builds (painel) a cada push em `main`; `deploy-cloudflare.yml` ficou como alternativa manual (fase 17).
+- Deploy feito em 16/11/2026 pelo painel (build `npm run build`, deploy `npx wrangler deploy`).
+
+## Fase 17 — auditoria pós-Cloudflare e simulador de financiamento
+**Erros e contradições corrigidos**
+- Caches de imagem limitados só por quantidade: no Worker (sem `sharp`) guardavam fotos originais e podiam estourar os 128 MB do isolate → cache limitado por **bytes** (`lib/byteCache.ts`, 12 MB cada no Worker).
+- App web servido pelos Workers Assets **sem** cabeçalhos de segurança (CSP, X-Frame-Options, HSTS) → mesma política da API em `web/public/_headers`, com teste que impede divergência.
+- `PUBLIC_ORIGIN` com barra no final bloqueava todas as alterações ("Origem não permitida") → normalizado; Origin igual ao próprio host também é aceito.
+- O build do painel (`npm run build`) **não migrava** o banco e a doc dizia que sim → o Worker aplica as migrações pendentes sozinho (embutidas no bundle, trava transacional contra execução dupla, testado com banco vazio no `wrangler dev`).
+- Segredo faltando gerava "Error 1101" genérico → 503 explicando **quais** variáveis faltam (só nomes), no app, na vitrine e no `/api/health`; mensagens de configuração mais claras.
+- Conta com senha argon2 via "senha incorreta" para sempre no Worker → mensagem específica (`senha_legada`); em Node a senha é regravada no formato novo no login. Login de e-mail inexistente agora custa o mesmo tempo (não revela quem tem conta).
+- Servidor de estáticos (Node) aceitava `/..%2fdist2/...` (pasta vizinha com o mesmo prefixo) → corrigido; URL malformada dá 400.
+- Erro após `setCookie` mantinha o cookie na resposta de erro → descartado.
+- Workflow do GitHub e Workers Builds publicariam em dobro (e `--var PUBLIC_ORIGIN` conflitaria com o segredo de mesmo nome) → workflow só manual, `PUBLIC_ORIGIN` como segredo.
+- `/api/health` passou a conferir o banco (`db: ok|erro|lento`, 503 se falhar).
+- Docs desatualizados (Render, Helmet, argon2, `frame-ancestors none`, contagem de testes, itens já feitos em LACUNAS) corrigidos; flag `enable_nodejs_http_server_modules` e script `cf:build` sem uso removidos.
+
+**Inovação: simulador de financiamento** na página pública do imóvel à venda (com preço visível): entrada (20% sugerido), prazo, juros, SAC ou Price; mostra valor financiado, parcelas, total e renda sugerida (30%); avisa entrada abaixo de 20%; botão "Quero ajuda com o financiamento" preenche o formulário de contato. Só estimativa (sem seguros, tarifas e TR), calculada no navegador; nada é enviado sem a pessoa pedir contato.
+
+**Verificação:** 106 testes (novos: `worker.test.ts` 14, `simulator.test.ts` 4), typecheck, build, bundle do Worker; no `wrangler dev`: página de configuração incompleta, migração automática num banco vazio, cadastro/login e mensagem de senha antiga; simulador conferido no Chromium (celular).
+**Não testado:** o Worker real na Cloudflare (o ambiente daqui não alcança workers.dev), CPU real do login no plano gratuito, Neon acessado de dentro da Cloudflare.

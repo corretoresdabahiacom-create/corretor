@@ -20,7 +20,7 @@ export class HttpReply {
   statusCode = 200; sent = false;
   headers = new Headers();
   payload: unknown = undefined;
-  private cookies: string[] = [];
+  cookies: string[] = [];
   code(n: number) { this.statusCode = n; return this; }
   status(n: number) { return this.code(n); }
   header(k: string, v: string | number) { this.headers.set(k, String(v)); return this; }
@@ -166,7 +166,7 @@ export class HttpApp {
         if (!reply.sent) await this.run(route.handler, req, reply);
       }
     } catch (err: any) {
-      reply.sent = false; reply.payload = undefined; reply.headers = new Headers(); reply.statusCode = 200;
+      reply.sent = false; reply.payload = undefined; reply.headers = new Headers(); reply.cookies = []; reply.statusCode = 200;
       try { const v = await this.errorHandler(err, req, reply); if (!reply.sent && v !== undefined && v !== reply) reply.send(v); }
       catch { reply.code(500).send({ error: 'Erro interno.' }); }
     }

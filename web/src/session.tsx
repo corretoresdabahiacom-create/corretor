@@ -9,18 +9,25 @@ export interface Session {
   appName: string;
   theme?: AppTheme;
 }
-interface Ctx { session: Session | null; loading: boolean; offline: boolean; refresh: () => Promise<void>; can: (p: string) => boolean }
-const C = createContext<Ctx>({ session: null, loading: true, offline: false, refresh: async () => {}, can: () => false });
+/** Servidor no ar mas sem configuração/banco (503 do Worker): mostra o motivo em vez de uma tela de login que não funciona. */
+export interface Unavailable { error: string; problems: string[] }
+interface Ctx { session: Session | null; loading: boolean; offline: boolean; unavailable: Unavailable | null; refresh: () => Promise<void>; can: (p: string) => boolean }
+const C = createContext<Ctx>({ session: null, loading: true, offline: false, unavailable: null, refresh: async () => {}, can: () => false });
 export const useSession = () => useContext(C);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
+  const [unavailable, setUnavailable] = useState<Unavailable | null>(null);
   const refresh = useCallback(async () => {
     // Sem internet não é "deslogado": mostra a tela de sem conexão e tenta de novo quando a rede voltar.
-    try { const me = await get<Session>('/api/auth/me'); setSession(me); applyTheme(me.theme); setOffline(false); }
-    catch (e) { if (e instanceof ApiError && e.status === 0) setOffline(true); else { setSession(null); applyTheme(null); setOffline(false); } }
+    try { const me = await get<Session>('/api/auth/me'); setSession(me); applyTheme(me.theme); setOffline(false); setUnavailable(null); }
+    catch (e) {
+      if (e instanceof ApiError && e.status === 0) setOffline(true);
+      else if (e instanceof ApiError && e.status === 503) { setOffline(false); setUnavailable({ error: e.message, problems: Array.isArray(e.body?.problems) ? e.body.problems : [] }); }
+      else { setSession(null); applyTheme(null); setOffline(false); setUnavailable(null); }
+    }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { const on = () => { if (offline) refresh(); }; window.addEventListener('online', on); return () => window.removeEventListener('online', on); }, [offline, refresh]);
@@ -32,5 +39,5 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
   // A interface só reflete o que o servidor autoriza; o servidor valida toda ação.
   const can = (p: string) => !!session?.permissions.includes(p);
-  return <C.Provider value={{ session, loading, offline, refresh, can }}>{children}</C.Provider>;
+  return <C.Provider value={{ session, loading, offline, unavailable, refresh, can }}>{children}</C.Provider>;
 }

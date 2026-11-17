@@ -1,8 +1,7 @@
 name: Deploy (Cloudflare Workers)
-# Publica API + app web como um único Worker (plano gratuito, sem cartão). Só roda se os segredos existirem.
+# ALTERNATIVA ao deploy automático da Cloudflare (Workers Builds, que é o usado hoje e publica a cada push em main).
+# Só manual, para não publicar duas vezes. Só roda se os segredos existirem no GitHub.
 on:
-  push:
-    branches: [main, claude/keen-edison-2dosax]
   workflow_dispatch:
 concurrency: { group: deploy-cloudflare, cancel-in-progress: false }
 jobs:
@@ -33,13 +32,16 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --var PUBLIC_ORIGIN:${{ vars.PUBLIC_ORIGIN }} --var GIT_COMMIT:${{ github.sha }}
+          command: deploy --var GIT_COMMIT:${{ github.sha }}
+          # PUBLIC_ORIGIN vai como segredo (igual ao painel): uma "var" com o mesmo nome de um segredo faz o deploy falhar.
           secrets: |
             DATABASE_URL
             FORM_SECRET
+            PUBLIC_ORIGIN
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FORM_SECRET: ${{ secrets.FORM_SECRET }}
+          PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
       - name: Confere /api/health
         if: steps.cfg.outputs.ok == 'true'
         env: { O: "${{ vars.PUBLIC_ORIGIN }}", SHA: "${{ github.sha }}" }
