@@ -123,5 +123,7 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 
 **Inovação: simulador de financiamento** na página pública do imóvel à venda (com preço visível): entrada (20% sugerido), prazo, juros, SAC ou Price; mostra valor financiado, parcelas, total e renda sugerida (30%); avisa entrada abaixo de 20%; botão "Quero ajuda com o financiamento" preenche o formulário de contato. Só estimativa (sem seguros, tarifas e TR), calculada no navegador; nada é enviado sem a pessoa pedir contato.
 
-**Verificação:** 106 testes (novos: `worker.test.ts` 14, `simulator.test.ts` 4), typecheck, build, bundle do Worker; no `wrangler dev`: página de configuração incompleta, migração automática num banco vazio, cadastro/login e mensagem de senha antiga; simulador conferido no Chromium (celular).
+**Trocar senha (logado):** Minha conta → Trocar senha (`POST /api/auth/password`): pede a atual, valida a nova, mantém a sessão atual e desconecta os outros aparelhos; auditado. Antes só existia "esqueci minha senha" (que depende de e-mail configurado).
+
+**Verificação:** 107 testes (novos: `worker.test.ts` 15, `simulator.test.ts` 4), typecheck, build, bundle do Worker; no `wrangler dev`: página de configuração incompleta, migração automática num banco vazio, cadastro/login e mensagem de senha antiga; simulador conferido no Chromium (celular).
 **Não testado:** o Worker real na Cloudflare (o ambiente daqui não alcança workers.dev), CPU real do login no plano gratuito, Neon acessado de dentro da Cloudflare.

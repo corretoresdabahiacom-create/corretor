@@ -10,7 +10,7 @@ npm install
 npm run migrate                 # cria/atualiza o schema (PostgreSQL 16)
 npm run dev:server              # API em :3001
 npm run dev:web                 # app em :5173 (proxy /api)
-npm test                        # 106 testes no banco imobflow_test (nunca produção)
+npm test                        # 107 testes no banco imobflow_test (nunca produção)
 ```
 Requer PostgreSQL 16 com extensões `pgcrypto` e `pg_trgm`.
 

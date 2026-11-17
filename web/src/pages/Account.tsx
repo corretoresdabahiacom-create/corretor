@@ -12,6 +12,15 @@ export default function Account() {
   const isAdmin = session!.user.role === 'admin';
   const toast = useToast(); const [days, setDays] = useState('365'); const [pErr, setPErr] = useState('');
   const purge = async () => { setPErr(''); try { const r = await post('/api/privacy/purge-leads', { older_than_days: Number(days) }); toast(`${r.apagados} contato(s) do site apagado(s)`); } catch (e) { setPErr(e instanceof ApiError ? (e.body?.fields?.[0]?.message ?? e.message) : 'Erro'); } };
+  const [cur, setCur] = useState(''); const [np, setNp] = useState(''); const [np2, setNp2] = useState(''); const [cErr, setCErr] = useState(''); const [cBusy, setCBusy] = useState(false);
+  const change = async () => {
+    setCErr('');
+    if (np !== np2) { setCErr('A confirmação não bate com a nova senha.'); return; }
+    setCBusy(true);
+    try { await post('/api/auth/password', { current: cur, password: np }); setCur(''); setNp(''); setNp2(''); toast('Senha alterada. Outros aparelhos foram desconectados.'); }
+    catch (e) { setCErr(e instanceof ApiError ? e.message : 'Não foi possível trocar a senha.'); }
+    finally { setCBusy(false); }
+  };
   const remove = async () => {
     setErr(''); setBusy(true);
     try { await post('/api/auth/account/delete', { password, confirm }); await refresh(); nav('/entrar'); }
@@ -23,6 +32,14 @@ export default function Account() {
       <section className="card stack">
         <h2>Dados</h2>
         <div><b>{session!.user.name}</b><div className="small muted">{session!.user.email} · {L(session!.user.role)} · {session!.org?.name}</div></div>
+      </section>
+      <section className="card stack">
+        <h2>Trocar senha</h2>
+        <Field label="Senha atual"><input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+        <Field label="Nova senha (mín. 10 caracteres, com letras e números)"><input type="password" autoComplete="new-password" value={np} onChange={(e) => setNp(e.target.value)} /></Field>
+        <Field label="Repita a nova senha"><input type="password" autoComplete="new-password" value={np2} onChange={(e) => setNp2(e.target.value)} /></Field>
+        {cErr && <div className="alert err" role="alert">{cErr}</div>}
+        <button className="btn primary" disabled={cBusy || !cur || !np || !np2} onClick={change}>{cBusy ? 'Salvando…' : 'Trocar senha'}</button>
       </section>
       {isAdmin && <section className="card stack">
         <h2>Privacidade (LGPD)</h2>

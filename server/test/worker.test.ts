@@ -175,3 +175,20 @@ describe('diagnóstico de configuração de produção', () => {
     }
   });
 });
+
+describe('trocar senha (logado)', () => {
+  it('exige a senha atual, valida a nova, mantém esta sessão e derruba as outras', async () => {
+    const { admin, email } = await newOrg(app, 'Troca');
+    const outro = new Client(app);
+    expect((await outro.post('/api/auth/login', { email, password: 'senhaSegura123' })).status).toBe(200);
+    expect((await admin.post('/api/auth/password', { current: 'errada123456', password: 'NovaSenha2026' })).status).toBe(400);
+    expect((await admin.post('/api/auth/password', { current: 'senhaSegura123', password: 'curta1' })).status).toBe(400);
+    expect((await admin.post('/api/auth/password', { current: 'senhaSegura123', password: 'senhaSegura123' })).status).toBe(400);
+    expect((await admin.post('/api/auth/password', { current: 'senhaSegura123', password: 'NovaSenha2026' })).status).toBe(200);
+    expect((await admin.get('/api/auth/me')).status).toBe(200);   // esta sessão continua
+    expect((await outro.get('/api/auth/me')).status).toBe(401);   // outro aparelho caiu
+    expect((await new Client(app).post('/api/auth/login', { email, password: 'senhaSegura123' })).status).toBe(401);
+    expect((await new Client(app).post('/api/auth/login', { email, password: 'NovaSenha2026' })).status).toBe(200);
+    expect((await new Client(app).post('/api/auth/password', { current: 'x', password: 'NovaSenha2027' })).status).toBe(401); // sem login
+  });
+});

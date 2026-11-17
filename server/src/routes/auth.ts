@@ -123,6 +123,21 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ---- Trocar a própria senha (logado) ----
+  // Pede a senha atual; encerra as OUTRAS sessões (outros aparelhos) e mantém esta.
+  app.post('/api/auth/password', { preHandler: requireAuth, ...rl(5, '15 minutes') }, async (req, reply) => {
+    const body = z.object({ current: z.string().min(1, 'Informe a senha atual.'), password: z.string() }).parse(req.body);
+    const problem = passwordProblem(body.password);
+    if (problem) return reply.code(400).send({ error: problem });
+    if (body.password === body.current) return reply.code(400).send({ error: 'A nova senha precisa ser diferente da atual.' });
+    const me = await q1<any>('SELECT id, password_hash FROM users WHERE id=$1', [req.user!.id]);
+    if (!me || !(await verifyPassword(me.password_hash, body.current))) return reply.code(400).send({ error: 'Senha atual incorreta.' });
+    await q('UPDATE users SET password_hash=$2 WHERE id=$1', [me.id, await hashPassword(body.password)]);
+    await q('DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2', [me.id, hashToken(req.cookies[COOKIE] ?? '')]);
+    await audit(req, 'auth.password.change', 'user', me.id);
+    return { ok: true };
+  });
+
   // ---- Excluir a própria conta ----
   // Admin: apaga a imobiliária inteira e todos os dados (irreversível). Demais papéis: desativa e anonimiza só a própria conta.
   app.post('/api/auth/account/delete', { preHandler: requireAuth, ...rl(5, '15 minutes') }, async (req, reply) => {
