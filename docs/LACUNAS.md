@@ -38,3 +38,8 @@ Continuam pendentes: conversão de vídeo, reordenar fotos, barra de progresso, 
 ## Atualização (fase 21)
 Feitos: garantidores (com alerta de vencimento), vistorias (entrada/saída/periódica, comparação, laudo), calendário de temporada (reservas, bloqueios, iCal de saída, datas ocupadas na página pública).
 Continuam pendentes: importar iCal de Airbnb/Booking; Google Drive/Calendar; alertas de novos imóveis; comparador/favoritos; mensagem pronta de WhatsApp (fase 22). Pedido de visita com data/período já existe na página pública.
+
+
+## Atualização (fase 22)
+Feitos: favoritos e comparador (vitrine), mensagem pronta de WhatsApp, alertas de novos imóveis (manual, via painel), agendamento de visita (já existia), Google Agenda por link iCal.
+Continuam pendentes: **Google Drive e Calendar em dois sentidos** (precisam de credenciais OAuth do Google); envio automático dos alertas (precisa de provedor de e-mail/WhatsApp); importar iCal de Airbnb/Booking; boleto/PIX; 2FA; teste em aparelhos reais.

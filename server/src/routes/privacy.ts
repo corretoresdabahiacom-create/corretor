@@ -34,6 +34,7 @@ export async function privacyRoutes(app: FastifyInstance) {
       arquivos: await rows(`SELECT to_jsonb(f) - 'org_id' - 'storage_key' AS j FROM files f WHERE f.org_id=$1 AND f.person_id=$2`),
       contratos: await rows(`SELECT to_jsonb(c) - 'org_id' AS j FROM contracts c WHERE c.org_id=$1 AND (c.owner_person_id=$2 OR c.counterparty_person_id=$2)`),
       imoveis_como_proprietario: await rows(`SELECT jsonb_build_object('codigo', p.code, 'titulo', p.title, 'status', p.status) AS j FROM properties p WHERE p.org_id=$1 AND p.owner_person_id=$2`),
+      pedidos_de_aviso: (await q<any>(`SELECT to_jsonb(a) - 'org_id' - 'ip_hash' AS j FROM property_alerts a WHERE a.org_id=$1 AND ((a.email IS NOT NULL AND a.email = ANY($2::text[])) OR (a.phone IS NOT NULL AND a.phone = ANY($3::text[])))`, [org, person.emails ?? [], person.phones ?? []])).map((x) => x.j),
       contatos_do_site: (await q<any>(`SELECT to_jsonb(l) - 'org_id' - 'ip_hash' AS j FROM portal_leads l WHERE l.org_id=$1 AND (l.person_id=$2 OR (l.email IS NOT NULL AND l.email = ANY($3::text[])) OR (l.phone IS NOT NULL AND l.phone = ANY($4::text[]))) ORDER BY l.created_at`, [org, id, person.emails ?? [], person.phones ?? []])).map((x) => x.j),
     };
     await audit(req, 'person.export', 'person', id);
@@ -57,6 +58,7 @@ export async function privacyRoutes(app: FastifyInstance) {
       await c.query('DELETE FROM contract_docs WHERE org_id=$1 AND person_id=$2', [org, id]); // texto do contrato contém dados pessoais
       await c.query('DELETE FROM person_interactions WHERE person_id=$1', [id]);
       const leads = await c.query(`DELETE FROM portal_leads WHERE org_id=$1 AND (person_id=$2 OR (email IS NOT NULL AND email = ANY($3::text[])) OR (phone IS NOT NULL AND phone = ANY($4::text[])))`, [org, id, p.emails ?? [], p.phones ?? []]);
+      await c.query(`DELETE FROM property_alerts WHERE org_id=$1 AND ((email IS NOT NULL AND email = ANY($2::text[])) OR (phone IS NOT NULL AND phone = ANY($3::text[])))`, [org, p.emails ?? [], p.phones ?? []]);
       await c.query(`UPDATE people SET name=$3, display_name=NULL, document=NULL, document_norm=NULL, phones='{}', emails='{}', address='{}'::jsonb, contact_pref=NULL, source=NULL, private_notes=NULL, consent='{}'::jsonb, profile='{}'::jsonb, relationship_status='inativo', archived_at=COALESCE(archived_at, now()), updated_by=$4, updated_at=now() WHERE id=$1 AND org_id=$2`, [id, org, ANON_NAME, req.user!.id]);
       return { code: 200, contatos_do_site_apagados: leads.rowCount ?? 0 };
     });

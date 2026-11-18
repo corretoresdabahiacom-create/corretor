@@ -46,3 +46,7 @@
 
 ## Contratos gerados (fase 19)
 O texto dos contratos criados na pasta do cliente contém dados pessoais (nome, CPF, endereço). Acesso: administrador, gestor e corretor. Links de compartilhamento expiram (1 a 30 dias), podem ser cancelados e mostram o texto inteiro a quem tiver o link. A anonimização da pessoa apaga esses contratos; a exportação do titular os inclui. Revise com o jurídico o prazo de guarda de contratos assinados antes de anonimizar.
+
+
+## Pedidos de aviso de novos imóveis (fase 22)
+A vitrine coleta nome, telefone/e-mail e critérios de busca em `property_alerts`, com o texto de consentimento gravado. Esses dados entram na exportação (`pedidos_de_aviso`) e são apagados na anonimização da pessoa (casando por telefone/e-mail); o corretor também pode excluir o pedido a qualquer momento. Sem envio automático.

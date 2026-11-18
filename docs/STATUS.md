@@ -156,3 +156,12 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 - Migração `017_guarantors_inspections_stays.sql` (RLS ligado). `/ical/*` entrou em `run_worker_first`.
 - **Não feito:** *importar* iCal de Airbnb/Booking (só exporta); pagamento de sinal automático.
 - Testes: `phase21.test.ts` (11). Total: 136.
+
+## Fase 22 — engajamento: favoritos, comparador, alertas, WhatsApp, agenda
+- **Favoritos e comparador na vitrine** (sem login): botões ♥ e ⇄ nos cartões e na página do imóvel; a escolha fica no aparelho (`localStorage`, por vitrine), barra flutuante leva a `/v/<slug>/favoritos` (lista + enviar a lista por WhatsApp) e `/v/<slug>/comparar` (até 3 imóveis lado a lado). As páginas só mostram imóveis publicados da própria vitrine, escapam a entrada e são `noindex`.
+- **Mensagem pronta de WhatsApp:** `GET /api/properties/:id/whatsapp-message` e cartão no imóvel (texto editável, copiar, abrir no WhatsApp); adapta urbano/rural/litoral/temporada, usa só dados públicos e inclui o link só se publicado. Botão "Compartilhar" na página pública.
+- **Alertas de novos imóveis:** formulário no fim da vitrine (token, honeypot, consentimento LGPD, limite 5/h) → `property_alerts` (migração 018, RLS). No painel (Portal e contatos → "Interessados em novos imóveis") aparecem os imóveis publicados depois do pedido que combinam (finalidade, região, cidade, preço máximo, quartos) com mensagem pronta e botão "Avisar no WhatsApp"; "Marcar como avisado", pausar e excluir. **Nada é enviado automaticamente** (não há provedor de e-mail/WhatsApp configurado). Entram na exportação e na anonimização LGPD da pessoa.
+- **Agendamento de visita na página:** já existia (data e período no formulário de interesse, vira contato no painel).
+- **Google Agenda:** já funciona por link de assinatura (iCal, somente leitura) em Agenda; o calendário de temporada também gera link iCal. **Google Drive e sincronização em dois sentidos com o Calendar NÃO foram feitos:** exigem um app OAuth do Google (client id/secret e aprovação de escopos) que só o dono da conta pode criar.
+- **Não testado em navegador real:** o JavaScript dos botões ♥/⇄ (só teste de sintaxe e de HTML gerado); testar em celular antes de divulgar.
+- Testes: `phase22.test.ts` (9). Total: 144.

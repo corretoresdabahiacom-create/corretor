@@ -1,3 +1,4 @@
+import { AlertsPanel } from './Engage';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, get, patch, post } from '../api';
@@ -105,6 +106,7 @@ export default function Portal() {
         </section>
       )}</Async>}
       <Leads />
+      {can('people.read') && <AlertsPanel />}
       <PlanAndProfile />
     </>
   );

@@ -14,7 +14,7 @@ import { CONSENT_TEXT, bump, formToken, loadPublic } from './portal.js';
 import { DEFAULT_SITE, parseFilters, hasFilters, siteInput, siteOf, videosInput } from '../lib/site.js';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { renderHome, renderProperty, vcard, type SiteCtx } from '../lib/siteRender.js';
+import { renderCompare, renderFavorites, renderHome, renderProperty, vcard, type SiteCtx } from '../lib/siteRender.js';
 import { DEFAULT_APP_THEME, appThemeInput, appThemeOf, effectiveTheme } from '../lib/appTheme.js';
 
 const rl = (max: number, timeWindow: string) => ({ config: { rateLimit: (process.env.RATE_LIMIT_DISABLED === 'true' ? false : { max, timeWindow }) as false | { max: number; timeWindow: string } } });
@@ -81,6 +81,16 @@ export async function vitrineRoutes(app: FastifyInstance) {
     if (!v || !card) return reply.code(404).type('text/plain').send('Contato não disponível.');
     return reply.header('cache-control', 'public, max-age=300').header('content-disposition', `attachment; filename="${v.org.slug}.vcf"`).type('text/vcard; charset=utf-8').send(card);
   });
+
+  for (const [path, fn] of [['favoritos', renderFavorites], ['comparar', renderCompare]] as const) {
+    app.get(`/v/:slug/${path}`, rl(120, '1 minute'), async (req, reply) => {
+      const slug = String((req.params as any).slug);
+      const v = /^[a-z0-9-]{2,80}$/.test(slug) ? await loadVitrine(slug) : null;
+      if (!v) return reply.code(404).type('text/html').send(NOT_FOUND('Esta vitrine não existe.'));
+      const codes = String((req.query as any).c ?? '').split(',').filter((x) => /^[a-z0-9]{6,12}$/.test(x)).slice(0, 30);
+      return reply.header('cache-control', 'no-store').header('x-robots-tag', 'noindex').type('text/html; charset=utf-8').send(fn(await ctxOf(v, false), v.rows, codes));
+    });
+  }
 
   app.get('/v/:slug/imovel/:code', rl(120, '1 minute'), async (req, reply) => {
     const { slug, code } = req.params as any;

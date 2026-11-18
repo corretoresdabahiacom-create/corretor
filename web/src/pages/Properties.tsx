@@ -7,6 +7,7 @@ import { FilesPanel } from './Files';
 import { Icon } from '../icons';
 import { PortalCard } from './Portal';
 import { StaysPanel } from './Stays';
+import { WhatsAppMessageCard } from './Engage';
 import { brl, formatMoneyInput, L, maskCEP, parseMoney } from '../format';
 
 const URBAN = ['casa', 'apartamento', 'cobertura', 'kitnet', 'terreno', 'sala_comercial', 'loja', 'galpao', 'predio', 'outro'];
@@ -305,6 +306,7 @@ export function PropertyDetail() {
           )}
           {p.purposes?.includes('temporada') && <StaysPanel propertyId={id!} canWrite={can('properties.write')} />}
           <PortalCard propertyId={id!} canWrite={can('properties.write')} />
+          <WhatsAppMessageCard propertyId={id!} purposes={p.purposes ?? []} />
           <FilesPanel base={`/api/properties/${id}`} photos canWrite={can('properties.write')} canDocs={can('properties.internal')} />
           <VideosPanel id={id!} initial={p.videos ?? []} canWrite={can('properties.write')} />
           {p.owner && <section className="card"><h2>Proprietário</h2><Link to={`/pessoas/${p.owner.id}`}>{p.owner.name}</Link></section>}

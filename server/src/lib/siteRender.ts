@@ -84,13 +84,20 @@ dialog.lb{width:100%;height:100%;max-width:none;max-height:none;margin:0;padding
 .warn{background:#fef3c7;color:#92400e;padding:12px 16px;border-radius:var(--r);margin-top:16px}.pv{background:#111827;color:#fff;text-align:center;font-size:.85rem;padding:6px}
 :focus-visible{outline:3px solid var(--s);outline-offset:2px}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.hero .sl img:first-child{opacity:1}}`;
 
+
+const ENG_CSS = `.ph{position:relative}.favb,.cmpb{position:absolute;top:10px;width:38px;height:38px;border-radius:999px;border:0;background:#fffe;color:#111;font-size:1.15rem;cursor:pointer;display:grid;place-items:center;box-shadow:0 1px 4px #0003}.favb{right:10px}.cmpb{right:54px}.favb[aria-pressed=true]{color:#dc2626}.cmpb[aria-pressed=true]{background:var(--p);color:var(--pt)}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.acts button,.acts a{border:1px solid var(--line);background:var(--card);color:inherit;border-radius:999px;padding:8px 14px;font:inherit;cursor:pointer;text-decoration:none}.acts button[aria-pressed=true]{border-color:var(--p);color:var(--p);font-weight:600}
+#ebar{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:30;background:#111827;color:#fff;border-radius:999px;padding:8px 10px;display:none;gap:6px;box-shadow:0 4px 16px #0005}#ebar a{color:#fff;padding:6px 12px;border-radius:999px;text-decoration:none;background:#ffffff22}
+.cmp{overflow-x:auto}.cmp table{border-collapse:collapse;width:100%;min-width:560px}.cmp th,.cmp td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}.cmp th{background:var(--card);width:130px}.cmp img{width:100%;max-width:240px;border-radius:var(--r)}
+.nb{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin:32px auto;max-width:900px}.nb .fm{padding:0;border:0}`;
+
 function head(c: SiteCtx, o: { title: string; desc: string; url: string; img?: string; ld?: object }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${esc(o.title)}</title><meta name="description" content="${esc(o.desc)}"><link rel="canonical" href="${esc(o.url)}"><meta name="theme-color" content="${esc(c.brand.primary)}">
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(o.title)}"><meta property="og:description" content="${esc(o.desc)}"><meta property="og:url" content="${esc(o.url)}">${o.img ? `<meta property="og:image" content="${esc(o.img)}"><meta name="twitter:card" content="summary_large_image">` : ''}
 ${c.hasLogo ? `<link rel="icon" href="/api/public/brand/${esc(c.org.slug)}/logo">` : ''}${c.preview ? '<meta name="robots" content="noindex">' : ''}
 ${o.ld ? `<script type="application/ld+json">${JSON.stringify(o.ld).replace(/</g, '\\u003c')}</script>` : ''}
-<style>${theme(c)}${CSS}${MAP_CSS}${SIM_CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
+<style>${theme(c)}${CSS}${MAP_CSS}${SIM_CSS}${ENG_CSS}</style></head><body>${c.preview ? '<div class="pv">Pré-visualização — é assim que os visitantes veem o seu site.</div>' : ''}`;
 }
 
 const orgName = (c: SiteCtx) => c.org.public_name || c.org.name;
@@ -108,6 +115,7 @@ function footer(c: SiteCtx) {
   const ig = socialUrl('instagram', c.site.contact.instagram), fb = socialUrl('facebook', c.site.contact.facebook);
   const wa = waLink(whats(c), `Olá! Vim pelo site da ${orgName(c)}.`);
   return `<footer><div class="w"><div><b>${esc(orgName(c))}</b><br>${esc(c.site.footer || 'Valores e disponibilidade podem mudar sem aviso.')}</div><div>${[ig && `<a href="${esc(ig)}" rel="noopener">Instagram</a>`, fb && `<a href="${esc(fb)}" rel="noopener">Facebook</a>`].filter(Boolean).join(' · ')}${badge ? `<br>Site feito com <a href="${esc(c.base)}/cadastrar?ref=${esc(c.org.slug)}">ImobFlow</a>` : ''}</div></div></footer>
+<div id="ebar" role="region" aria-label="Favoritos e comparação"></div>
 ${wa ? `<a class="fab" href="${esc(wa)}" rel="noopener" aria-label="Conversar no WhatsApp">${ic('wa')}</a>` : ''}`;
 }
 
@@ -124,7 +132,7 @@ const place = (p: any) => [p.neighborhood, p.city && `${p.city}${p.state ? '/' +
 export function propCard(c: SiteCtx, p: any, fin?: string) {
   const href = `/v/${encodeURIComponent(c.org.slug)}/imovel/${esc(p.public_code)}`;
   const badges = [p.featured && '<span class="f">Destaque</span>', ...p.purposes.slice(0, 2).map((x: string) => `<span>${esc(FIN[x] ?? x)}</span>`)].filter(Boolean).join('');
-  return `<a class="pc" href="${href}"><div class="ph">${p.cover_id ? `<img src="${photo(p.cover_id)}" alt="${esc(p.title)}" loading="lazy" decoding="async">` : '<div class="ni">Sem foto</div>'}<div class="bdg">${badges}</div>${p.photo_count > 1 || p.video_count ? `<span class="cnt">${p.photo_count > 1 ? `${p.photo_count} fotos` : ''}${p.video_count ? `${p.photo_count > 1 ? ' · ' : ''}${ic('play')}vídeo` : ''}</span>` : ''}</div>
+  return `<a class="pc" href="${href}" data-code="${esc(p.public_code)}"><div class="ph">${p.cover_id ? `<img src="${photo(p.cover_id)}" alt="${esc(p.title)}" loading="lazy" decoding="async">` : '<div class="ni">Sem foto</div>'}<div class="bdg">${badges}</div>${p.photo_count > 1 || p.video_count ? `<span class="cnt">${p.photo_count > 1 ? `${p.photo_count} fotos` : ''}${p.video_count ? `${p.photo_count > 1 ? ' · ' : ''}${ic('play')}vídeo` : ''}</span>` : ''}</div>
 <div class="bd">${prices(p, fin)}<h3>${esc(p.title)}</h3><div class="loc">${ic('pin')}${esc([subLabel(p.subtype), place(p)].filter(Boolean).join(' · '))}</div>${p.description ? `<p class="ds">${esc(String(p.description).replace(/\s+/g, ' ').slice(0, 220))}</p>` : ''}${facts(p) ? `<div class="fx">${facts(p)}</div>` : ''}</div></a>`;
 }
 
@@ -165,11 +173,57 @@ function send(f,url,body,ok){var m=f.querySelector('[role=status]');var v=Object
  fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body(v))}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Erro');m.textContent=ok;f.reset();})}).catch(function(e){m.textContent=e.message||'Não foi possível enviar. Tente de novo.'});}
 var af=document.getElementById('af');if(af)af.addEventListener('submit',function(e){e.preventDefault();send(af,'/api/public/vitrine/'+sl+'/avaliacao',function(v){return{token:af.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,property_type:v.property_type,address:v.address,message:v.message||undefined,website:v.website||'',consent:true}},'Recebemos seu pedido! Entraremos em contato para combinar a avaliação.')});
 var lf=document.getElementById('lf');if(lf)lf.addEventListener('submit',function(e){e.preventDefault();send(lf,'/api/public/leads',function(v){return{code:lf.dataset.code,token:lf.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,message:v.message||undefined,visit_date:v.visit_date||undefined,visit_period:v.visit_period||undefined,website:v.website||'',consent:true,ref:'vitrine'}},'Recebemos seu contato! Em breve retornaremos.')});
+var K=function(n){return 'imf:'+n+':'+sl},rd=function(n){try{return JSON.parse(localStorage.getItem(K(n))||'[]')}catch(e){return[]}},wr=function(n,v){try{localStorage.setItem(K(n),JSON.stringify(v))}catch(e){}};
+var bar=document.getElementById('ebar');
+function paint(){var fv=rd('fav'),cp=rd('cmp');document.querySelectorAll('[data-fav]').forEach(function(b){b.setAttribute('aria-pressed',fv.indexOf(b.dataset.fav)>-1?'true':'false')});document.querySelectorAll('[data-cmp]').forEach(function(b){b.setAttribute('aria-pressed',cp.indexOf(b.dataset.cmp)>-1?'true':'false')});
+ if(bar){var h='';if(fv.length)h+='<a href="/v/'+sl+'/favoritos?c='+fv.join(',')+'">♥ Favoritos ('+fv.length+')</a>';if(cp.length>1)h+='<a href="/v/'+sl+'/comparar?c='+cp.join(',')+'">⇄ Comparar ('+cp.length+')</a>';else if(cp.length===1)h+='<span style="padding:6px 10px">Escolha mais 1 para comparar</span>';bar.innerHTML=h;bar.style.display=h?'flex':'none'}}
+function tog(n,code,max){var v=rd(n),i=v.indexOf(code);if(i>-1)v.splice(i,1);else{if(max&&v.length>=max){alert('Compare até '+max+' imóveis por vez.');return}v.push(code)}wr(n,v);paint()}
+document.querySelectorAll('.pc[data-code]').forEach(function(a){var ph=a.querySelector('.ph');if(!ph)return;var c=a.dataset.code;
+ [['fav','♥','Favoritar'],['cmp','⇄','Comparar']].forEach(function(x){var b=document.createElement('button');b.type='button';b.className=x[0]+'b';b.dataset[x[0]]=c;b.textContent=x[1];b.setAttribute('aria-label',x[2]+' imóvel');b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();tog(x[0],c,x[0]==='cmp'?3:0)});ph.appendChild(b)})});
+document.querySelectorAll('.acts [data-fav],.acts [data-cmp]').forEach(function(b){b.addEventListener('click',function(){if(b.dataset.fav)tog('fav',b.dataset.fav,0);else tog('cmp',b.dataset.cmp,3)})});
+document.querySelectorAll('[data-rmfav]').forEach(function(b){b.addEventListener('click',function(){var v=rd('fav').filter(function(x){return x!==b.dataset.rmfav});wr('fav',v);var c=b.closest('.pcw');if(c)c.remove();paint()})});
+paint();
+var nf=document.getElementById('nf');if(nf)nf.addEventListener('submit',function(e){e.preventDefault();send(nf,'/api/public/vitrine/'+sl+'/alertas',function(v){return{token:nf.dataset.token,name:v.name,phone:v.phone||undefined,email:v.email||undefined,purpose:v.purpose||undefined,kind:v.kind||undefined,city:v.city||undefined,max_price:v.max_price?Number(String(v.max_price).replace(/\\./g,'').replace(',','.')):undefined,min_bedrooms:v.min_bedrooms?Number(v.min_bedrooms):undefined,consent:true,website:v.website||''}},'Pronto! Avisaremos quando chegar um imóvel assim.')});
 var fd=document.querySelector('.flt details');if(fd&&fd.dataset.active==='0'&&matchMedia('(max-width:760px)').matches)fd.open=false;
 document.querySelectorAll('.flt select').forEach(function(s){s.addEventListener('change',function(){if(matchMedia('(min-width:761px)').matches)s.form.submit()})});
 var lb=document.getElementById('lb');document.querySelectorAll('[data-lb]').forEach(function(a){a.addEventListener('click',function(e){if(!lb||!lb.showModal)return;e.preventDefault();lb.showModal();var t=document.getElementById(a.dataset.lb);if(t)t.scrollIntoView()})});
 if(lb)lb.querySelector('button').addEventListener('click',function(){lb.close()});
 document.querySelectorAll('.mt nav a').forEach(function(a){a.addEventListener('click',function(){a.closest('details').open=false})});})();</script>`;
+
+
+function alertBox(c: SiteCtx, token: string) {
+  const cities = [...new Set((c as any).cities ?? [])] as string[];
+  return `<section class="sc" id="avisos"><div class="nb"><h2 style="margin-top:0">Receba avisos de novos imóveis</h2><p style="color:var(--mut)">Diga o que procura e a gente avisa quando chegar algo parecido.</p>
+<form class="fm" id="nf" novalidate data-token="${esc(token)}"><div class="two"><label>Seu nome<input name="name" required maxlength="120" autocomplete="name"></label><label>Telefone com DDD<input name="phone" inputmode="tel" autocomplete="tel"></label></div><label>E-mail<input name="email" type="email" autocomplete="email"></label>
+<div class="two"><label>Finalidade<select name="purpose"><option value="">Qualquer</option>${Object.entries(FIN).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label><label>Região<select name="kind"><option value="">Qualquer</option><option value="urbano">Urbano</option><option value="rural">Rural</option></select></label></div>
+<div class="two"><label>Cidade<input name="city" maxlength="80"></label><label>Preço máximo (R$)<input name="max_price" inputmode="numeric"></label></div><label>Quartos (mínimo)<select name="min_bedrooms"><option value="">Qualquer</option>${[1, 2, 3, 4].map((n) => `<option>${n}</option>`).join('')}</select></label>
+<div class="hp" aria-hidden="true"><label>Site<input name="website" tabindex="-1" autocomplete="off"></label></div>
+<label class="ck"><input type="checkbox" name="consent"> <span>${esc(ALERT_CONSENT_TEXT)}</span></label><button class="btn" type="submit">Quero receber avisos</button><p role="status"></p></form></div></section>`;
+}
+const ALERT_CONSENT_TEXT = 'Autorizo receber avisos de novos imóveis por WhatsApp ou e-mail e o tratamento dos meus dados para esse fim. Posso pedir a exclusão a qualquer momento.';
+const shellPage = (c: SiteCtx, title: string, root: string, inner: string) =>
+  `${head(c, { title: `${title} — ${orgName(c)}`, desc: title, url: `${c.base}${root}`, ld: undefined })}<meta name="robots" content="noindex">${header(c, false)}<main class="w" style="padding-top:24px">${inner}</main>${footer(c)}${SCRIPT(c.org.slug)}</body></html>`;
+
+/** Lista dos favoritos do visitante (códigos vêm da URL; só aparecem imóveis publicados desta imobiliária). */
+export function renderFavorites(c: SiteCtx, rows: any[], codes: string[]) {
+  const root = `/v/${encodeURIComponent(c.org.slug)}`;
+  const list = codes.map((k) => rows.find((r) => r.public_code === k)).filter(Boolean);
+  const wa = list.length ? waLink(whats(c), `Olá! Tenho interesse nestes imóveis:\n${list.map((p) => `• ${p.title} — ${c.base}${root}/imovel/${p.public_code}`).join('\n')}`) : '';
+  return shellPage(c, 'Meus favoritos', root, `<div class="crumb"><a href="${root}#imoveis">← Todos os imóveis</a></div><h1>Meus favoritos</h1>
+${list.length ? `<p style="color:var(--mut)">Guardados neste aparelho. ${wa ? `<a class="lnk" href="${esc(wa)}" rel="noopener">Enviar a lista para a imobiliária</a>` : ''}</p><div class="grid">${list.map((p) => `<div class="pcw">${propCard(c, p)}<button type="button" class="btn" style="margin-top:8px;width:100%" data-rmfav="${esc(p.public_code)}">Remover dos favoritos</button></div>`).join('')}</div>` : '<div class="emp">Nenhum favorito ainda. Toque no ♥ de um imóvel para guardar.</div>'}`);
+}
+
+export function renderCompare(c: SiteCtx, rows: any[], codes: string[]) {
+  const root = `/v/${encodeURIComponent(c.org.slug)}`;
+  const list = codes.slice(0, 3).map((k) => rows.find((r) => r.public_code === k)).filter(Boolean);
+  const price = (p: any) => !p.show_price ? 'Sob consulta' : ([['price_sale', 'Venda', ''], ['price_rent', 'Aluguel', '/mês'], ['price_lease', 'Arrend.', '/ano']] as const).filter(([k]) => p[k] != null).map(([k, l, sf]) => `${l}: ${brl(Number(p[k]))}${sf}`).join('<br>') || 'Sob consulta';
+  const rowsDef: [string, (p: any) => string][] = [
+    ['Valor', price], ['Finalidade', (p) => esc(p.purposes.map((x: string) => FIN[x] ?? x).join(', '))], ['Tipo', (p) => esc(subLabel(p.subtype))], ['Local', (p) => esc(place(p) || '—')],
+    ['Área', (p) => p.area_total ? `${Number(p.area_total).toLocaleString('pt-BR')} ${AREA[p.area_unit] ?? ''}` : '—'], ['Quartos', (p) => String(p.bedrooms ?? '—')], ['Banheiros', (p) => String(p.bathrooms ?? '—')], ['Vagas', (p) => String(p.parking ?? '—')],
+  ];
+  const body = list.length < 2 ? '<div class="emp">Escolha pelo menos 2 imóveis (botão ⇄ nos cartões) para comparar.</div>' : `<div class="cmp"><table><thead><tr><th></th>${list.map((p) => `<th style="background:none;width:auto"><a href="${root}/imovel/${esc(p.public_code)}">${p.cover_id ? `<img src="${photo(p.cover_id, 480)}" alt="">` : ''}<br>${esc(p.title)}</a></th>`).join('')}</tr></thead><tbody>${rowsDef.map(([k, fn]) => `<tr><th scope="row">${k}</th>${list.map((p) => `<td>${fn(p)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return shellPage(c, 'Comparar imóveis', root, `<div class="crumb"><a href="${root}#imoveis">← Todos os imóveis</a></div><h1>Comparar imóveis</h1>${body}`);
+}
 
 export function renderHome(c: SiteCtx, rows: any[], f: Filters, appraisalToken: string, consent: string) {
   const name = orgName(c), root = `/v/${encodeURIComponent(c.org.slug)}`, url = `${c.base}${root}`;
@@ -207,7 +261,7 @@ ${rows.length ? filterForm(c, rows, f, list.length) : ''}${list.length ? `<div c
   const ld = { '@context': 'https://schema.org', '@type': 'RealEstateAgent', name, url, ...(c.hasLogo ? { logo: `${c.base}/api/public/brand/${c.org.slug}/logo` } : {}), ...(s.contact.address ? { address: s.contact.address } : {}), ...(s.contact.phone ? { telephone: s.contact.phone } : {}) };
   const desc = (s.hero.subtitle || c.brand.intro || c.brand.tagline || `Imóveis disponíveis — ${name}`).slice(0, 160);
   const og = covers[0] ? `${c.base}${covers[0]}` : c.hasLogo ? `${c.base}/api/public/brand/${c.org.slug}/logo` : undefined;
-  return `${head(c, { title: `${title} — Imóveis`, desc, url, img: og, ld })}${header(c, true)}<main>${hero}${cats ? `<div class="w"><nav class="cats" aria-label="Categorias">${cats}</nav></div>` : ''}${body}</main>${footer(c)}${SCRIPT(c.org.slug)}</body></html>`;
+  return `${head(c, { title: `${title} — Imóveis`, desc, url, img: og, ld })}${header(c, true)}<main>${hero}${cats ? `<div class="w"><nav class="cats" aria-label="Categorias">${cats}</nav></div>` : ''}${body}${rows.length ? alertBox(c, appraisalToken) : ''}</main>${footer(c)}${SCRIPT(c.org.slug)}</body></html>`;
 }
 
 /** Cartão de contato (vCard 3.0) para salvar no celular; null se não houver telefone, WhatsApp nem e-mail. */
@@ -299,6 +353,7 @@ export function renderProperty(c: SiteCtx, d: any, similar: any[], leadToken: st
 <div class="crumb"><a href="${root}#imoveis">← Todos os imóveis</a></div>${gal}
 <div class="dt"><div><div class="tags">${d.purposes.map((x: string) => `<span>${esc(FIN[x] ?? x)}</span>`).join('')}<span>${esc(d.kind === 'rural' ? 'Rural' : 'Urbano')}</span></div>
 <h1 style="margin-top:12px">${esc(d.title)}</h1><div class="loc" style="margin-top:6px">${ic('pin')}${esc(pl)}${d.street ? ` — ${esc(d.street)}` : ''}</div>
+<div class="acts"><button type="button" data-fav="${esc(d.code)}" aria-pressed="false">♥ Favoritar</button><button type="button" data-cmp="${esc(d.code)}" aria-pressed="false">⇄ Comparar</button><a href="https://wa.me/?text=${encodeURIComponent(`${d.title} — ${url}`)}" rel="noopener">Compartilhar</a></div>
 ${d.status !== 'disponivel' ? '<p class="warn">Este imóvel pode não estar mais disponível. Fale com a imobiliária para confirmar.</p>' : ''}
 <div class="kv">${kv.map(([k, v]) => `<div><small>${k}</small><b>${esc(v)}</b></div>`).join('')}</div>
 ${d.description ? `<div class="box"><h2>Descrição</h2><p>${esc(d.description)}</p></div>` : ''}
