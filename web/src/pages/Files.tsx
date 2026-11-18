@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { ApiError, del, get, patch, upload } from '../api';
+import { ApiError, api, del, get, patch, upload } from '../api';
 import { Async, useAsync, useConfirm, useToast } from '../ui';
+import { convertVideo, isDirectVideo, VIDEO_LIMIT } from '../video';
 
 const DOC_TYPES: [string, string][] = [['matricula', 'Matrícula'], ['ccir', 'CCIR'], ['itr', 'ITR'], ['car', 'CAR'], ['escritura', 'Escritura'], ['iptu', 'IPTU'], ['contrato', 'Contrato'], ['procuracao', 'Procuração'], ['laudo', 'Laudo'], ['identidade', 'Documento de identidade'], ['comprovante', 'Comprovante'], ['outro', 'Outro']];
 const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -11,15 +12,31 @@ export function FilesPanel({ base, photos = false, canWrite, canDocs = true }: {
   const toast = useToast(); const { ask, node } = useConfirm();
   const videoIn = useRef<HTMLInputElement>(null); const photoIn = useRef<HTMLInputElement>(null); const docIn = useRef<HTMLInputElement>(null);
   const [docType, setDocType] = useState('matricula'); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [prog, setProg] = useState<{ label: string; pct: number } | null>(null);
   const send = async (files: FileList | null, category: 'foto' | 'documento' | 'video') => {
     if (!files?.length) return;
     setBusy(true); setErr('');
     try {
-      for (const f of Array.from(files)) await upload(`${base}/files`, f, category === 'documento' ? { category, doc_type: docType } : { category });
+      const list = Array.from(files);
+      for (let i = 0; i < list.length; i++) {
+        let f = list[i]; const tag = list.length > 1 ? ` (${i + 1}/${list.length})` : '';
+        if (category === 'video' && !isDirectVideo(f)) {
+          setProg({ label: `Convertendo ${f.name}${tag}… mantenha esta aba aberta`, pct: 0 });
+          f = await convertVideo(f, (pct) => setProg({ label: `Convertendo ${f.name}${tag}… mantenha esta aba aberta`, pct }));
+        }
+        setProg({ label: `Enviando ${f.name}${tag}`, pct: 0 });
+        await upload(`${base}/files`, f, category === 'documento' ? { category, doc_type: docType } : { category }, (pct) => setProg({ label: `Enviando ${f.name}${tag}`, pct }));
+      }
       toast(files.length > 1 ? 'Arquivos enviados' : 'Arquivo enviado');
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Erro ao enviar'); }
-    finally { setBusy(false); st.reload(); if (photoIn.current) photoIn.current.value = ''; if (videoIn.current) videoIn.current.value = ''; if (docIn.current) docIn.current.value = ''; }
+    } catch (e) { setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Erro ao enviar'); }
+    finally { setBusy(false); setProg(null); st.reload(); if (photoIn.current) photoIn.current.value = ''; if (videoIn.current) videoIn.current.value = ''; if (docIn.current) docIn.current.value = ''; }
   };
+  const move = async (ph: any[], i: number, d: -1 | 1) => {
+    const ids = ph.map((x) => x.id); const j = i + d; if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    try { await api('PUT', `${base}/files/order`, { ids }); st.reload(); } catch (e) { setErr(e instanceof ApiError ? e.message : 'Erro ao reordenar'); }
+  };
+  const Progress = () => prog ? <div role="status" aria-live="polite"><div className="small muted">{prog.label} — {prog.pct}%</div><progress value={prog.pct} max={100} style={{ width: '100%' }} /></div> : null;
   const remove = async (f: any) => { if (await ask(`Excluir “${f.filename}”? Esta ação não pode ser desfeita.`, 'Excluir')) { await del(`/api/files/${f.id}`); st.reload(); } };
   return (
     <Async state={st}>
@@ -31,22 +48,26 @@ export function FilesPanel({ base, photos = false, canWrite, canDocs = true }: {
               <section className="card stack">
                 <div className="row"><h2>Fotos ({ph.length})</h2>{canWrite && <><input ref={photoIn} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(e) => send(e.target.files, 'foto')} /><button className="btn small right" disabled={busy} onClick={() => photoIn.current?.click()}>{busy ? 'Enviando…' : '+ Adicionar fotos'}</button></>}</div>
                 {err && <div className="alert err" role="alert">{err}</div>}
-                {!ph.length ? <p className="muted small">Nenhuma foto ainda. Só fotos marcadas como públicas aparecem na página de divulgação.</p> : (
-                  <div className="gallery">{ph.map((f) => (
+                <Progress />
+                {!ph.length ? <p className="muted small">Nenhuma foto ainda. Só fotos marcadas como públicas aparecem na página de divulgação.</p> : (<>
+                  {canWrite && ph.length > 1 && <p className="small muted">Use ◀ ▶ para mudar a ordem das fotos. A capa aparece sempre primeiro.</p>}
+                  <div className="gallery">{ph.map((f, i) => (
                     <figure key={f.id}>
                       <img src={f.url} alt={f.caption || f.filename} loading="lazy" />
                       {f.is_cover && <span className="chip ok">Capa</span>}
                       <span className={`chip ${f.visibility === 'publico' ? 'warn' : 'gray'}`} style={{ left: 'auto', right: '.3rem' }}>{f.visibility === 'publico' ? 'Pública' : 'Privada'}</span>
                       {canWrite && <div className="row small"><button className="btn small" onClick={async () => { await patch(`/api/files/${f.id}`, { visibility: f.visibility === 'publico' ? 'privado' : 'publico' }); st.reload(); }}>{f.visibility === 'publico' ? 'Tornar privada' : 'Tornar pública'}</button>{!f.is_cover && <button className="btn small" onClick={async () => { await patch(`/api/files/${f.id}`, { is_cover: true }); st.reload(); }}>Definir capa</button>}<button className="btn small danger right" onClick={() => remove(f)} aria-label="Excluir foto">🗑</button></div>}
+                      {canWrite && ph.length > 1 && <div className="row small"><button className="btn small" disabled={i === 0} onClick={() => move(ph, i, -1)} aria-label={`Mover foto ${i + 1} para antes`}>◀</button><span className="muted">{i + 1}/{ph.length}</span><button className="btn small" disabled={i === ph.length - 1} onClick={() => move(ph, i, 1)} aria-label={`Mover foto ${i + 1} para depois`}>▶</button></div>}
                     </figure>
-                  ))}</div>
+                  ))}</div></>
                 )}
               </section>
             )}
             {photos && (
               <section className="card stack">
-                <div className="row"><h2>Vídeos enviados ({vids.length})</h2>{canWrite && <><input ref={videoIn} type="file" accept="video/mp4,video/webm" hidden onChange={(e) => send(e.target.files, 'video')} /><button className="btn small right" disabled={busy || vids.length >= 3} onClick={() => videoIn.current?.click()}>{busy ? 'Enviando…' : '+ Enviar vídeo'}</button></>}</div>
-                <p className="small muted">MP4 (H.264) ou WebM, até 30 MB, no máximo 3 por imóvel. O app não converte o vídeo: se ele não tocar, exporte como MP4/H.264. Para vídeos longos, prefira um link do YouTube ou Vimeo. Só vídeos marcados como públicos aparecem na página do imóvel.</p>
+                <div className="row"><h2>Vídeos enviados ({vids.length})</h2>{canWrite && <><input ref={videoIn} type="file" accept="video/*" hidden onChange={(e) => send(e.target.files, 'video')} /><button className="btn small right" disabled={busy || vids.length >= 3} onClick={() => videoIn.current?.click()}>{busy ? 'Enviando…' : '+ Enviar vídeo'}</button></>}</div>
+                <p className="small muted">MP4 ou WebM de até 30 MB, no máximo 3 por imóvel. Outros formatos (como .mov do iPhone) e vídeos maiores são convertidos e comprimidos aqui mesmo no seu navegador, ao tempo real do vídeo (um vídeo de 2 minutos leva uns 2 minutos; mantenha a aba aberta). Para vídeos longos (acima de ~5 minutos), prefira um link do YouTube ou Vimeo. Só vídeos marcados como públicos aparecem na página do imóvel.</p>
+                
                 {!vids.length ? <p className="muted small">Nenhum vídeo enviado.</p> : <div className="stack">{vids.map((f) => (
                   <div key={f.id} className="stack">
                     <video controls preload="metadata" playsInline src={f.url} style={{ width: '100%', maxHeight: '40vh', borderRadius: 'var(--radius-sm)', background: '#000' }} aria-label={f.caption || f.filename} />

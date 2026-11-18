@@ -61,16 +61,22 @@ async function prepareImage(file: File, url: string): Promise<File> {
   } catch { return file; }
 }
 
-/** Envia um arquivo (multipart). O navegador define o Content-Type com o boundary. */
-export async function upload<T = any>(url: string, file: File, fields: Record<string, string> = {}): Promise<T> {
-  if (fields.category !== 'documento') file = await prepareImage(file, url);
+/** Envia um arquivo (multipart) com progresso. O navegador define o Content-Type com o boundary. */
+export async function upload<T = any>(url: string, file: File, fields: Record<string, string> = {}, onProgress?: (pct: number) => void): Promise<T> {
+  if (fields.category !== 'documento' && fields.category !== 'video') file = await prepareImage(file, url);
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.append(k, v);
   fd.append('file', file);
-  let res: Response;
-  try { res = await fetch(url, { method: 'POST', credentials: 'same-origin', body: fd }); }
-  catch { throw new ApiError(0, 'Sem conexão com o servidor. Verifique sua internet e tente novamente.'); }
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data.error ?? 'Não foi possível enviar o arquivo.', data);
-  return data as T;
+  return new Promise<T>((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', url); x.withCredentials = true;
+    if (onProgress) x.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
+    x.onerror = () => reject(new ApiError(0, 'Sem conexão com o servidor. Verifique sua internet e tente novamente.'));
+    x.ontimeout = x.onerror; x.timeout = 10 * 60_000;
+    x.onload = () => {
+      let data: any = {}; try { data = JSON.parse(x.responseText); } catch { /* corpo vazio */ }
+      if (x.status >= 200 && x.status < 300) resolve(data as T); else reject(new ApiError(x.status, data.error ?? 'Não foi possível enviar o arquivo.', data));
+    };
+    x.send(fd);
+  });
 }

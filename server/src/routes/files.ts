@@ -113,6 +113,24 @@ export async function fileRoutes(app: FastifyInstance) {
   mk('person_id', '/api/people', 'people.document');
   mk('contract_id', '/api/contracts', 'contracts.read');
 
+  // Reordenar as fotos do imóvel: recebe os ids na ordem desejada. Fotos não citadas ficam depois, na ordem atual.
+  app.put('/api/properties/:id/files/order', { preHandler: requirePerm('properties.write') }, async (req, reply) => {
+    const id = z.string().uuid().parse((req.params as any).id);
+    const { ids } = z.object({ ids: z.array(z.string().uuid()).min(1).max(MAX_PHOTOS) }).parse(req.body);
+    if (new Set(ids).size !== ids.length) return reply.code(400).send({ error: 'Lista de fotos com itens repetidos.' });
+    if (!(await ownerExists(req.user!.orgId, { column: 'property_id', id }))) return reply.code(404).send({ error: 'Imóvel não encontrado.' });
+    const out = await tx(async (c) => {
+      const cur = (await c.query(`SELECT id FROM files WHERE org_id=$1 AND property_id=$2 AND category='foto' ORDER BY position, created_at FOR UPDATE`, [req.user!.orgId, id])).rows.map((r) => r.id as string);
+      if (ids.some((x) => !cur.includes(x))) return false;
+      const order = [...ids, ...cur.filter((x) => !ids.includes(x))];
+      await c.query(`UPDATE files f SET position=o.pos FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id,pos) WHERE f.id=o.id AND f.org_id=$2`, [order, req.user!.orgId]);
+      return true;
+    });
+    if (!out) return reply.code(400).send({ error: 'Alguma foto não pertence a este imóvel.' });
+    await audit(req, 'file.reorder', 'property', id, { fotos: ids.length });
+    return { ok: true };
+  });
+
   async function loadFile(req: FastifyRequest, reply: any) {
     const id = z.string().uuid().safeParse((req.params as any).id);
     const f = id.success ? await q1<any>('SELECT * FROM files WHERE id=$1 AND org_id=$2', [id.data, req.user!.orgId]) : null;

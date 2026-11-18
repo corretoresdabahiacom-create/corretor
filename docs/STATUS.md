@@ -141,3 +141,10 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 - Migração 016: `contract_docs`, `contract_doc_versions`, `contract_doc_shares` (RLS ligado). Permissão nova `docs.contracts`: **administrador, gestor e corretor** (assistente e consulta não veem nada). Na ficha do cliente: criar de um modelo (preenche cliente, imóvel, corretor, CRECI do cartão, imobiliária), **editar** texto e campos, situação (rascunho → finalizado → assinado; só rascunho é editável), **histórico de versões** com restaurar (últimas 30), **copiar** (mesmo ou outro cliente), **excluir** e **compartilhar** por link com validade de 1 a 30 dias (só o hash fica no banco, cancelável, conta visualizações, `noindex`) e botão imprimir/salvar PDF. Anonimizar a pessoa apaga os contratos dela; a exportação LGPD inclui os documentos.
 - **Aviso de atualização dos modelos:** tarefa agendada semanal (segunda, 9h23 de Brasília) compara as páginas-fonte com `docs/fontes-modelos.json`; se algo mudou, notifica e **pergunta** se deve atualizar. Nada é alterado sem a resposta.
 - Testes: `phase19.test.ts` (8) + rota `/d/*` no teste do wrangler. Total: 123.
+
+
+## Fase 20 — mídia: conversão de vídeo, reordenar fotos, barra de progresso
+- **Barra de progresso** em todo envio de arquivo (XHR com `upload.onprogress`), com "n/total" em lotes.
+- **Conversão de vídeo no navegador** (`web/src/video.ts`, sem servidor e sem custo): qualquer formato que o navegador abra (ex.: .mov do iPhone) ou vídeo acima de 30 MB é regravado em até 1280 px, bitrate calculado para caber em ~27 MB, saída MP4/H.264 (se o navegador gravar) ou WebM. Leva o tempo do vídeo e a aba precisa ficar aberta; limite de 10 minutos. Testado em Chromium real: 6 s/4,9 MB → 1,2 MB WebM válido. **Não testado:** Safari/iPhone e Firefox (dependem do `MediaRecorder` de cada um; sem suporte, a tela explica e pede MP4/WebM).
+- **Reordenar fotos:** botões ◀ ▶ na galeria; `PUT /api/properties/:id/files/order` (permissão `properties.write`, valida que as fotos são do imóvel). A página pública já ordena por capa e posição.
+- Testes: `phase20.test.ts` (2).
