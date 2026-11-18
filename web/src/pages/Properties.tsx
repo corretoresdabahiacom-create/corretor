@@ -6,6 +6,7 @@ import { Async, Empty, Field, Modal, MultiToggle, Pager, StatusChip, Toggle, use
 import { FilesPanel } from './Files';
 import { Icon } from '../icons';
 import { PortalCard } from './Portal';
+import { StaysPanel } from './Stays';
 import { brl, formatMoneyInput, L, maskCEP, parseMoney } from '../format';
 
 const URBAN = ['casa', 'apartamento', 'cobertura', 'kitnet', 'terreno', 'sala_comercial', 'loja', 'galpao', 'predio', 'outro'];
@@ -302,6 +303,7 @@ export function PropertyDetail() {
               {p.coastal_details.sea_view && <div>🌊 Vista para o mar</div>}
             </section>
           )}
+          {p.purposes?.includes('temporada') && <StaysPanel propertyId={id!} canWrite={can('properties.write')} />}
           <PortalCard propertyId={id!} canWrite={can('properties.write')} />
           <FilesPanel base={`/api/properties/${id}`} photos canWrite={can('properties.write')} canDocs={can('properties.internal')} />
           <VideosPanel id={id!} initial={p.videos ?? []} canWrite={can('properties.write')} />

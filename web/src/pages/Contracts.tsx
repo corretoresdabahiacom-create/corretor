@@ -4,6 +4,7 @@ import { useSession } from '../session';
 import { Async, Empty, Field, Modal, StatusChip, useAsync, useConfirm, useToast } from '../ui';
 import { brl, dateBR, L } from '../format';
 import { FilesPanel } from './Files';
+import { GuarantorsPanel, InspectionsPanel } from './ContractExtras';
 
 export function ContractAlerts() {
   const st = useAsync(() => get('/api/contracts/alerts'), []);
@@ -54,7 +55,7 @@ function ContractForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         {f.kind === 'arrendamento' && <Field label="Área arrendada (ha)"><input inputMode="decimal" value={f.rural_area_ha} onChange={(e) => set('rural_area_ha', e.target.value)} /></Field>}
         <Field label="Garantia"><input value={f.guarantee} onChange={(e) => set('guarantee', e.target.value)} /></Field>
         <Field label="Observações"><textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
-        <p className="small muted">Este cadastro serve para controle de prazos e valores. Ele não gera nem substitui o contrato jurídico; anexe o contrato assinado depois.</p>
+        <p className="small muted">Este cadastro controla prazos e valores. Para gerar o contrato a partir de um modelo, use a pasta do cliente (Pessoas → Contratos) e anexe aqui o contrato assinado.</p>
         {err && <div className="alert err" role="alert">{err}</div>}
         <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Salvando…' : 'Salvar rascunho'}</button>
       </div>
@@ -142,6 +143,8 @@ function ContractModal({ c, onClose, onChanged }: { c: any; onClose: () => void;
         {w && c.status === 'ativo' && !closing && <button className="btn danger" onClick={() => setClosing(true)}>Encerrar / rescindir…</button>}
         {closing && <><Field label="Situação"><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="encerrado">Encerrado (fim do prazo)</option><option value="rescindido">Rescindido</option></select></Field><Field label="Motivo"><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field><button className="btn danger" disabled={reason.trim().length < 3} onClick={() => run(() => post(`/api/contracts/${c.id}/close`, { status: kind, reason }), 'Contrato encerrado')}>Confirmar</button></>}
         <FinancePanel c={c} canWrite={w} onRenewed={async (id) => { onChanged(); onClose(); }} />
+        <GuarantorsPanel contractId={c.id} canWrite={w} />
+        <InspectionsPanel contractId={c.id} canWrite={w} />
         <FilesPanel base={`/api/contracts/${c.id}`} canWrite={w} />
       </div>
       {node}

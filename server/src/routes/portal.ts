@@ -82,6 +82,7 @@ ${d.description ? `<div class="card"><p style="white-space:pre-wrap;margin:0">${
 ${d.features.length ? `<div class="card">${d.features.map((f: string) => `<span class="chip">${esc(f)}</span>`).join('')}</div>` : ''}
 ${d.rural && (d.rural.water_sources.length || d.rural.activities.length) ? `<div class="card">${d.rural.water_sources.length ? `<p>Água: ${esc(d.rural.water_sources.join(', '))}</p>` : ''}${d.rural.activities.length ? `<p>Atividades: ${esc(d.rural.activities.join(', '))}</p>` : ''}</div>` : ''}
 ${d.coastal?.beach_distance_m != null ? `<div class="card">🌊 A ${esc(d.coastal.beach_distance_m)} m da praia${d.coastal.sea_view ? ' · vista para o mar' : ''}</div>` : ''}
+${d.purposes.includes('temporada') ? `<div class="card" id="av"><h2 style="margin-top:0">Datas ocupadas</h2><p class="small" id="avl">Carregando…</p></div>` : ''}
 <div class="card"><h2 style="margin-top:0">Tenho interesse</h2><p class="small">${esc(d.agency.name)}</p>
 ${wa ? `<a class="btn" href="${esc(wa)}" rel="noopener">Falar no WhatsApp</a>` : ''}
 <form id="f" novalidate><label>Seu nome<input name="name" required maxlength="120" autocomplete="name"></label><label>Telefone com DDD<input name="phone" inputmode="tel" autocomplete="tel"></label><label>E-mail<input name="email" type="email" autocomplete="email"></label><label>Mensagem (opcional)<textarea name="message" rows="3" maxlength="1000"></textarea></label>
@@ -90,6 +91,7 @@ ${wa ? `<a class="btn" href="${esc(wa)}" rel="noopener">Falar no WhatsApp</a>` :
 ${config.turnstileSiteKey ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script><div class="cf-turnstile" data-sitekey="${esc(config.turnstileSiteKey)}"></div>` : ''}<button type="submit">Enviar</button><p id="m" role="status"></p></form></div>
 ${d.agency.badge ? `<footer>Feito com <a href="${esc(base)}/cadastrar?ref=${esc(d.agency.slug)}">ImobFlow</a> — organize seus imóveis e clientes grátis</footer>` : ''}
 </main><script>
+var av=document.getElementById('avl');if(av){fetch('/api/public/p/'+${JSON.stringify(d.code)}+'/availability').then(function(r){return r.json()}).then(function(j){var b=j.busy||[];var fm=function(x){return x.split('-').reverse().join('/')};av.textContent=b.length?b.map(function(i){return fm(i.from)+' a '+fm(i.to)}).join(' · ')+' (check-out no último dia). Fora dessas datas, fale conosco para reservar.':'Nenhuma data ocupada nos próximos meses. Fale conosco para reservar.'}).catch(function(){av.textContent='Consulte a disponibilidade com a imobiliária.'})}
 var f=document.getElementById('f'),m=document.getElementById('m'),t=${JSON.stringify(token)},c=${JSON.stringify(d.code)};
 f.addEventListener('submit',function(e){e.preventDefault();var v=Object.fromEntries(new FormData(f));
  if(!v.name||v.name.trim().length<2){m.textContent='Informe seu nome.';return}

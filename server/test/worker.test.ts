@@ -66,7 +66,7 @@ describe('cabeçalhos de segurança', () => {
 describe('wrangler.jsonc', () => {
   it('rotas dinâmicas passam pelo Worker antes dos arquivos estáticos', () => {
     const wr = fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8');
-    for (const r of ['/api/*', '/p/*', '/v/*', '/d/*', '/robots.txt', '/sitemap.xml']) expect(wr).toContain(`"${r}"`);
+    for (const r of ['/api/*', '/p/*', '/v/*', '/d/*', '/ical/*', '/robots.txt', '/sitemap.xml']) expect(wr).toContain(`"${r}"`);
     expect(wr).toContain('"directory": "web/dist"');
     expect(wr).toContain('"main": "server/src/worker.ts"');
     expect(fs.existsSync(path.join(root, 'web/public/_redirects'))).toBe(false); // conflita com Workers Assets

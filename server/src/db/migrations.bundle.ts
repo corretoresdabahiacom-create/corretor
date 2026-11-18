@@ -17,6 +17,7 @@ import m13 from './migrations/013_video_files.sql';
 import m14 from './migrations/014_late_fees.sql';
 import m15 from './migrations/015_indices.sql';
 import m16 from './migrations/016_contract_docs.sql';
+import m17 from './migrations/017_guarantors_inspections_stays.sql';
 
 export const bundledMigrations: Migration[] = [
   { name: '001_core.sql', sql: m01 },
@@ -35,4 +36,5 @@ export const bundledMigrations: Migration[] = [
   { name: '014_late_fees.sql', sql: m14 },
   { name: '015_indices.sql', sql: m15 },
   { name: '016_contract_docs.sql', sql: m16 },
+  { name: '017_guarantors_inspections_stays.sql', sql: m17 },
 ];

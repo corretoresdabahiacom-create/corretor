@@ -70,6 +70,15 @@ export async function contractRoutes(app: FastifyInstance) {
       const dias = Math.round((today.getTime() - new Date(String(l.since instanceof Date ? l.since.toISOString() : l.since).slice(0, 10) + 'T00:00:00Z').getTime()) / day);
       out.push({ contract_id: l.id, property_title: l.property_title, counterparty_name: l.counterparty_name, type: 'pagamento_atrasado', severity: 'alta', days: -dias, message: `${l.n} parcela(s) em atraso, R$ ${Number(l.total).toFixed(2).replace('.', ',')} em aberto.` });
     }
+    // Apólice de seguro-fiança / título de capitalização vencendo (ou vencido) em contrato ativo.
+    const gs = await q<any>(`SELECT g.contract_id, g.kind, g.valid_until, pr.title AS property_title, COALESCE(t.display_name,t.name) AS counterparty_name
+      FROM contract_guarantors g JOIN contracts c ON c.id=g.contract_id JOIN properties pr ON pr.id=c.property_id JOIN people t ON t.id=c.counterparty_person_id
+      WHERE g.org_id=$1 AND g.status='ativa' AND g.valid_until IS NOT NULL AND c.status='ativo' AND g.valid_until <= (now() AT TIME ZONE 'America/Sao_Paulo')::date + 60`, [req.user!.orgId]);
+    for (const g of gs) {
+      const vs = g.valid_until instanceof Date ? `${g.valid_until.getFullYear()}-${String(g.valid_until.getMonth() + 1).padStart(2, '0')}-${String(g.valid_until.getDate()).padStart(2, '0')}` : String(g.valid_until).slice(0, 10);
+      const d = Math.round((new Date(vs + 'T00:00:00Z').getTime() - today.getTime()) / day); const nome = g.kind === 'seguro_fianca' ? 'Seguro-fiança' : g.kind === 'titulo_capitalizacao' ? 'Título de capitalização' : 'Garantia';
+      out.push({ contract_id: g.contract_id, kind: g.kind, property_title: g.property_title, counterparty_name: g.counterparty_name, type: 'garantia', severity: d <= 15 ? 'alta' : 'media', days: d, message: d < 0 ? `${nome} venceu há ${-d} dia(s): peça a renovação ou nova garantia.` : `${nome} vence em ${d} dia(s).` });
+    }
     return out.sort((a, b) => a.days - b.days);
   });
 

@@ -33,3 +33,8 @@ Continuam pendentes: boleto/PIX/cobrança automática e conciliação bancária;
 ## Atualização (fases 18–19)
 Feitos: reajuste com busca automática de IGP-M/IPCA/INPC/IGP-DI (sugestão; chamada real ao BCB ainda não testada); 10 modelos de contrato com histórico na pasta do cliente (editar, copiar, excluir, compartilhar); aviso semanal de mudança nas fontes dos modelos.
 Continuam pendentes: conversão de vídeo, reordenar fotos, barra de progresso, Google Drive/Calendar, garantidores, vistorias, calendário de temporada, alertas de novos imóveis, comparador/favoritos, agendamento de visita, mensagem pronta de WhatsApp (próximas fases).
+
+
+## Atualização (fase 21)
+Feitos: garantidores (com alerta de vencimento), vistorias (entrada/saída/periódica, comparação, laudo), calendário de temporada (reservas, bloqueios, iCal de saída, datas ocupadas na página pública).
+Continuam pendentes: importar iCal de Airbnb/Booking; Google Drive/Calendar; alertas de novos imóveis; comparador/favoritos; mensagem pronta de WhatsApp (fase 22). Pedido de visita com data/período já existe na página pública.

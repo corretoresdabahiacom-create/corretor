@@ -148,3 +148,11 @@ Suíte total: 87 testes passando (Postgres 16 local), typecheck e build ok.
 - **Conversão de vídeo no navegador** (`web/src/video.ts`, sem servidor e sem custo): qualquer formato que o navegador abra (ex.: .mov do iPhone) ou vídeo acima de 30 MB é regravado em até 1280 px, bitrate calculado para caber em ~27 MB, saída MP4/H.264 (se o navegador gravar) ou WebM. Leva o tempo do vídeo e a aba precisa ficar aberta; limite de 10 minutos. Testado em Chromium real: 6 s/4,9 MB → 1,2 MB WebM válido. **Não testado:** Safari/iPhone e Firefox (dependem do `MediaRecorder` de cada um; sem suporte, a tela explica e pede MP4/WebM).
 - **Reordenar fotos:** botões ◀ ▶ na galeria; `PUT /api/properties/:id/files/order` (permissão `properties.write`, valida que as fotos são do imóvel). A página pública já ordena por capa e posição.
 - Testes: `phase20.test.ts` (2).
+
+## Fase 21 — garantidores, vistorias e calendário de temporada
+- **Garantias do contrato** (`routes/contractExtras.ts`, painel "Garantias" no contrato): fiador, avalista, caução, seguro-fiança, título de capitalização, outra. Na locação só uma modalidade de garantia por vez (Lei do Inquilinato, art. 37; fiador+avalista contam como uma). Seguro/título exigem vencimento e geram **alerta** em `/api/contracts/alerts` (60 dias antes, alta urgência com ≤15 dias).
+- **Vistorias** de entrada, saída e periódica: roteiro padrão (urbano ou rural), saída pode partir da entrada, rascunho → concluída (trava edição até reabrir), **comparação entrada × saída** (itens que pioraram) e **laudo imprimível** (`/api/inspections/:id/print`, escapa HTML, sem script inline de evento). Fotos: anexar nos arquivos do contrato.
+- **Calendário de temporada** (`routes/stays.ts`, painel no imóvel com finalidade "temporada"): reservas, pré-reservas e bloqueios; sobreposição impedida sob trava por imóvel (check-out libera a diária; testado com 3 pedidos simultâneos); **feed iCal** `/ical/<token>.ics` (token secreto, revogável, só datas — sem hóspede nem valores) para Airbnb/Booking/Google Agenda; **datas ocupadas na página pública** (`/api/public/p/:code/availability`).
+- Migração `017_guarantors_inspections_stays.sql` (RLS ligado). `/ical/*` entrou em `run_worker_first`.
+- **Não feito:** *importar* iCal de Airbnb/Booking (só exporta); pagamento de sinal automático.
+- Testes: `phase21.test.ts` (11). Total: 136.
