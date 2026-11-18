@@ -127,6 +127,11 @@ input[type=color] { padding: 4px; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .modal-bg { position: fixed; inset: 0; background: rgb(15 23 42 / .5); z-index: 50; display: flex; align-items: flex-end; justify-content: center; animation: fadein .15s; }
 .modal { background: var(--card); border-radius: 22px 22px 0 0; width: 100%; max-width: 620px; max-height: 92dvh; overflow: auto; padding: 1.1rem 1rem calc(1rem + env(safe-area-inset-bottom)); box-shadow: var(--shadow-lg); animation: slideup .2s ease-out; }
+.modal.wide { max-width: 940px; }
+.docbody { width: 100%; min-height: 46dvh; font: .95rem/1.55 Georgia, 'Times New Roman', serif; white-space: pre-wrap; }
+.tabs2 { display: flex; gap: .3rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: .6rem 0; }
+.tabs2 button { background: none; border: 0; padding: .5rem .8rem; cursor: pointer; font: inherit; color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs2 button.on { color: var(--brand); border-bottom-color: var(--brand); font-weight: 650; }
 @media (min-width: 720px) { .modal-bg { align-items: center; padding: 1rem; } .modal { border-radius: 20px; padding: 1.4rem; } }
 .steps { display: flex; gap: .3rem; margin-bottom: .9rem; } .steps i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); } .steps i.on { background: var(--brand); }
 .search { position: relative; flex: 1; } .search input { padding-left: 2.4rem; background: var(--bg); border-color: transparent; border-radius: 999px; min-height: 42px; }

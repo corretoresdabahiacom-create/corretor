@@ -3,9 +3,10 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { q, q1, tx } from '../db/pool.js';
 import { audit, requirePerm } from '../lib/auth.js';
+import { SERIES, normalizeIndex, refreshSeries, suggestion, type SeriesKey } from '../lib/indices.js';
 
 // Controle financeiro dos contratos: parcelas, baixa de pagamentos, reajuste e renovação.
-// Não emite boleto, não cobra e não calcula índices oficiais: o percentual do reajuste é informado por quem opera.
+// Não emite boleto nem cobra. Índices (IGP-M, IPCA, INPC, IGP-DI) vêm do Banco Central como SUGESTÃO; quem opera confirma o percentual.
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.');
 const money = z.number().positive().max(1e9);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -150,6 +151,24 @@ export async function contractFinanceRoutes(app: FastifyInstance) {
     const id = idOf(req);
     if (!(await loadContract(req.user!.orgId, id))) return reply.code(404).send({ error: 'Contrato não encontrado.' });
     return q('SELECT id,effective_date,index_name,percent,old_amount,new_amount,note,created_at FROM contract_adjustments WHERE contract_id=$1 AND org_id=$2 ORDER BY effective_date DESC, created_at DESC', [id, req.user!.orgId]);
+  });
+
+  // Sugestão de reajuste: acumulado de 12 meses do índice oficial (BCB) para a vigência informada. Não aplica nada.
+  const sugQuery = z.object({ effective_date: date, index: z.string().max(40).optional() });
+  app.get('/api/contracts/:id/adjust-suggestion', { preHandler: requirePerm('contracts.read') }, async (req, reply) => {
+    const id = idOf(req); const qy = sugQuery.parse(req.query);
+    const c = await loadContract(req.user!.orgId, id);
+    if (!c) return reply.code(404).send({ error: 'Contrato não encontrado.' });
+    const key = normalizeIndex(qy.index ?? c.adjustment_index);
+    if (!key) return reply.code(422).send({ error: 'Este contrato não tem um índice reconhecido (IGP-M, IPCA, INPC ou IGP-DI). Escolha um índice ou informe o percentual.', indices: Object.entries(SERIES).map(([k, v]) => ({ key: k, label: v.label })) });
+    return suggestion(key, qy.effective_date);
+  });
+
+  // Atualização manual dos índices (também acontece sozinha quando a sugestão é pedida e os dados estão velhos).
+  app.post('/api/indices/refresh', { preHandler: requirePerm('contracts.write') }, async (_req, reply) => {
+    const out: Record<string, { ok: boolean; meses?: number; error?: string }> = {};
+    for (const k of Object.keys(SERIES) as SeriesKey[]) { try { out[k] = { ok: true, meses: await refreshSeries(k) }; } catch (e) { out[k] = { ok: false, error: (e as Error).message }; } }
+    return reply.send(out);
   });
 
   // Reajuste: novo valor do contrato e das parcelas ainda em aberto a partir da data de vigência.

@@ -30,6 +30,7 @@ export async function privacyRoutes(app: FastifyInstance) {
       reservas: await rows(`SELECT to_jsonb(r) - 'org_id' AS j FROM reservations r WHERE r.org_id=$1 AND r.person_id=$2`),
       tarefas: await rows(`SELECT to_jsonb(t) - 'org_id' AS j FROM tasks t WHERE t.org_id=$1 AND t.person_id=$2`),
       eventos: await rows(`SELECT to_jsonb(e) - 'org_id' AS j FROM events e WHERE e.org_id=$1 AND e.person_id=$2`),
+      documentos_de_contrato: await rows(`SELECT to_jsonb(d) - 'org_id' AS j FROM contract_docs d WHERE d.org_id=$1 AND d.person_id=$2 ORDER BY d.created_at`),
       arquivos: await rows(`SELECT to_jsonb(f) - 'org_id' - 'storage_key' AS j FROM files f WHERE f.org_id=$1 AND f.person_id=$2`),
       contratos: await rows(`SELECT to_jsonb(c) - 'org_id' AS j FROM contracts c WHERE c.org_id=$1 AND (c.owner_person_id=$2 OR c.counterparty_person_id=$2)`),
       imoveis_como_proprietario: await rows(`SELECT jsonb_build_object('codigo', p.code, 'titulo', p.title, 'status', p.status) AS j FROM properties p WHERE p.org_id=$1 AND p.owner_person_id=$2`),
@@ -53,6 +54,7 @@ export async function privacyRoutes(app: FastifyInstance) {
       if (active) return { code: 409, error: 'Esta pessoa tem contrato ativo. Encerre ou renove o contrato antes de anonimizar.' };
       keys = (await c.query('SELECT storage_key FROM files WHERE org_id=$1 AND person_id=$2', [org, id])).rows.map((r) => r.storage_key);
       await c.query('DELETE FROM files WHERE org_id=$1 AND person_id=$2', [org, id]);
+      await c.query('DELETE FROM contract_docs WHERE org_id=$1 AND person_id=$2', [org, id]); // texto do contrato contém dados pessoais
       await c.query('DELETE FROM person_interactions WHERE person_id=$1', [id]);
       const leads = await c.query(`DELETE FROM portal_leads WHERE org_id=$1 AND (person_id=$2 OR (email IS NOT NULL AND email = ANY($3::text[])) OR (phone IS NOT NULL AND phone = ANY($4::text[])))`, [org, id, p.emails ?? [], p.phones ?? []]);
       await c.query(`UPDATE people SET name=$3, display_name=NULL, document=NULL, document_norm=NULL, phones='{}', emails='{}', address='{}'::jsonb, contact_pref=NULL, source=NULL, private_notes=NULL, consent='{}'::jsonb, profile='{}'::jsonb, relationship_status='inativo', archived_at=COALESCE(archived_at, now()), updated_by=$4, updated_at=now() WHERE id=$1 AND org_id=$2`, [id, org, ANON_NAME, req.user!.id]);

@@ -42,3 +42,7 @@
 | Cadastro de cliente sem negócio ativo | revisar anualmente |
 | Contratos e comprovantes | prazo legal/contábil aplicável |
 | Backups | conforme política do provedor; documente |
+
+
+## Contratos gerados (fase 19)
+O texto dos contratos criados na pasta do cliente contém dados pessoais (nome, CPF, endereço). Acesso: administrador, gestor e corretor. Links de compartilhamento expiram (1 a 30 dias), podem ser cancelados e mostram o texto inteiro a quem tiver o link. A anonimização da pessoa apaga esses contratos; a exportação do titular os inclui. Revise com o jurídico o prazo de guarda de contratos assinados antes de anonimizar.

@@ -9,7 +9,7 @@
   "assets": {
     "directory": "web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/p/*", "/v/*", "/robots.txt", "/sitemap.xml"]
+    "run_worker_first": ["/api/*", "/p/*", "/v/*", "/d/*", "/robots.txt", "/sitemap.xml"]
   },
   "alias": {
     "sharp": "./server/src/worker-stubs/missing.ts",

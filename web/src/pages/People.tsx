@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, del, get, patch, post, qs } from '../api';
 import { useSession } from '../session';
 import { FilesPanel } from './Files';
+import { ContractDocsPanel } from './ContractDocs';
 import { Async, Empty, Field, Modal, MultiToggle, Pager, Spinner, StatusChip, useAsync, useConfirm, useToast } from '../ui';
 import { brl, dateTimeBR, L, maskCPFCNPJ, maskPhone } from '../format';
 
@@ -222,6 +223,7 @@ export function PersonDetail() {
               </Async>
             </section>
           )}
+          {can('docs.contracts') && <ContractDocsPanel personId={p.id} />}
           {can('people.document') && <FilesPanel base={`/api/people/${id}`} canWrite={can('people.write')} />}
           <section className="card">
             <h2>Histórico</h2>

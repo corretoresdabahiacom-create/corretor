@@ -7,7 +7,7 @@ export type Permission =
   | 'deals.read' | 'deals.write' | 'deals.all'
   | 'events.read' | 'events.write' | 'events.all'
   | 'reports.read' | 'reports.all'
-  | 'contracts.read' | 'contracts.write'
+  | 'contracts.read' | 'contracts.write' | 'docs.contracts'
   | 'users.manage' | 'org.manage' | 'audit.read' | 'data.export';
 
 const ALL: Permission[] = [
@@ -16,7 +16,7 @@ const ALL: Permission[] = [
   'deals.read', 'deals.write', 'deals.all',
   'events.read', 'events.write', 'events.all',
   'reports.read', 'reports.all',
-  'contracts.read', 'contracts.write',
+  'contracts.read', 'contracts.write', 'docs.contracts',
   'users.manage', 'org.manage', 'audit.read', 'data.export',
 ];
 
@@ -28,7 +28,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'properties.read', 'properties.write', 'properties.internal',
     'deals.read', 'deals.write',
     'events.read', 'events.write',
-    'reports.read', 'contracts.read', 'contracts.write',
+    'reports.read', 'contracts.read', 'contracts.write', 'docs.contracts',
   ],
   assistente: [
     'people.read', 'people.write',

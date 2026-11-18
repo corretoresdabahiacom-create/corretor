@@ -16,6 +16,7 @@ import { vitrineRoutes } from './routes/vitrine.js';
 import { seoRoutes } from './routes/seo.js';
 import { contractRoutes } from './routes/contracts.js';
 import { contractFinanceRoutes } from './routes/contractFinance.js';
+import { contractDocRoutes } from './routes/contractDocs.js';
 import { geoRoutes } from './routes/geo.js';
 import { privacyRoutes } from './routes/privacy.js';
 
@@ -57,6 +58,7 @@ export async function buildApp(opts: { logger?: boolean; rateLimit?: boolean } =
   await app.register(fileRoutes);
   await app.register(contractRoutes);
   await app.register(contractFinanceRoutes);
+  await app.register(contractDocRoutes);
   await app.register(geoRoutes);
   await app.register(privacyRoutes);
   await app.register(portalRoutes);

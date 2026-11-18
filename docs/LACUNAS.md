@@ -28,3 +28,8 @@ Vitrine por categorias, marca (logo/cores/slogan), QR Code, cartão de visita 90
 ## Atualização (fases 11–14)
 Feitos: parcelas/pagamentos/reajuste/renovação de contratos; mapa na vitrine e na página do imóvel; exportação/anonimização/retenção (LGPD, com docs/LGPD.md); vídeo enviado como arquivo.
 Continuam pendentes: boleto/PIX/cobrança automática e conciliação bancária; índices oficiais (IGP-M/IPCA) automáticos; conversão de vídeo; 2FA; ~~deploy no Cloudflare~~ (no ar via Workers Builds desde 16/11/2026; falta confirmar segredos e o login em produção); Firebase não é usado; teste em aparelhos reais (iPhone/Android), leitor de tela e rede lenta.
+
+
+## Atualização (fases 18–19)
+Feitos: reajuste com busca automática de IGP-M/IPCA/INPC/IGP-DI (sugestão; chamada real ao BCB ainda não testada); 10 modelos de contrato com histórico na pasta do cliente (editar, copiar, excluir, compartilhar); aviso semanal de mudança nas fontes dos modelos.
+Continuam pendentes: conversão de vídeo, reordenar fotos, barra de progresso, Google Drive/Calendar, garantidores, vistorias, calendário de temporada, alertas de novos imóveis, comparador/favoritos, agendamento de visita, mensagem pronta de WhatsApp (próximas fases).

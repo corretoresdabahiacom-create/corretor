@@ -1,0 +1,39 @@
+{
+  "descricao": "Linha de base das fontes dos modelos de contrato (server/src/lib/docTemplates.ts). A tarefa agendada semanal compara a página atual com esta lista e avisa o dono do projeto se algo mudar. Nada é alterado no código sem a resposta dele.",
+  "consultado_em": "2026-11-18",
+  "fontes": [
+    {
+      "nome": "CRECI-PB — Modelos de Contratos/Documentos",
+      "url": "https://creci-pb.gov.br/canal-do-corretor/modelos-de-contratos/",
+      "pagina_modificada_em": "2021-02-16",
+      "arquivos": [
+        "08 Autorização de Venda com Exclusividade (2018/12)",
+        "15 Modelo de Autorização de Venda sem Exclusividade (2018/09)",
+        "04 Contrato de Locação 12 Meses (2016/04)",
+        "05 Contrato Locação Temporada (2016/04)",
+        "06 Contrato por Temporada (2016/04)",
+        "07 Contrato Locação Residencial com Fiadores (2016/04)",
+        "22 Contrato de Locação Comercial (2019/09)",
+        "23 Contrato de Locação Residencial com Fiador (2019/09)",
+        "24 Contrato de Locação Residencial sem Garantia (2019/09)",
+        "35 Modelo Proposta de Locação (2021/02)",
+        "18 Carta Proposta Compra de Imóvel (2019/09)",
+        "19 Contrato de Compra e Venda de Imóvel à Vista - Novo CC (2019/09)",
+        "20 Contrato de Compra e Venda Imóvel na Planta Financiado (2019/09)",
+        "28 Direito de Preferência para Compra de Imóvel (2019/09)",
+        "31 Contrato de Administração e Venda de Loteamento (2021/02)",
+        "02 Contrato Arrendamento Rural Agrícola (2016/04)",
+        "03 Contrato Arrendamento Rural Pecuária (2016/04)",
+        "13 Modelo de Laudo de Vistoria (2018/09)",
+        "26 Contrato de Prestação de Serviços de Corretagem Imobiliária (2019/09)",
+        "21 Contrato de Exclusividade - Novo Código Civil (2019/09)",
+        "33 Contrato para Procura de Imóvel (2021/02)"
+      ]
+    },
+    {
+      "nome": "CRECI-MS — Kit do Corretor de Imóveis",
+      "url": "https://crecims.gov.br/docs/modelosdecontratos/kit_do_corretor.pdf",
+      "arquivos": ["Autorização de Venda", "Termo de Visitação", "Recibo de Sinal de Negócio", "Promessa de Compra e Venda", "Cessão de Direitos"]
+    }
+  ]
+}
